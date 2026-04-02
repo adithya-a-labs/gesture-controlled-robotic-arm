@@ -60,7 +60,7 @@ while True:
         frame = tracker.draw(frame, pose_result, hand_result)
 
     if servo_angles:
-        s1, s2, s3 = servo_angles
+        s1, s2, s3, s4 = servo_angles
 
         cv2.putText(frame, f"S1: {s1}", (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
@@ -69,6 +69,9 @@ while True:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
         cv2.putText(frame, f"S3: {s3}", (10, 90),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+        cv2.putText(frame, f"S4 (Base): {s4}", (10, 120),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
     cv2.imshow("Arm Control", frame)
