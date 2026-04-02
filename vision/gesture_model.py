@@ -1,6 +1,7 @@
-from collections import deque
-
 import numpy as np
+
+ELBOW_RANGE = (20, 150)
+SHOULDER_RANGE = (10, 160)
 
 def calculate_angle(a, b, c):
     a = np.array(a)
@@ -19,12 +20,31 @@ def calculate_angle(a, b, c):
 
 class GestureModel:
     def __init__(self):
-        self.s2_buffer = deque(maxlen=5)
-        self.s3_buffer = deque(maxlen=5)
+        self.prev_s2 = None
+        self.prev_s3 = None
+        self.prev_grip = 0
 
-    def smooth(self, buffer, value):
-        buffer.append(value)
-        return int(sum(buffer) / len(buffer))
+    def smooth(self, current, prev, alpha):
+        if prev is None:
+            return current
+        return alpha * current + (1 - alpha) * prev
+
+    def limit_speed(self, target, current, max_step=5):
+        if current is None:
+            return target
+
+        delta = target - current
+        if abs(delta) > max_step:
+            target = current + max_step * np.sign(delta)
+
+        return target
+
+    def get_adaptive_alpha(self, current, prev):
+        if prev is None:
+            return 0.7
+
+        velocity = abs(current - prev)
+        return 0.7 if velocity > 10 else 0.3
 
     def get_pose_points(self, pose_result):
         if not pose_result.pose_landmarks:
@@ -67,7 +87,7 @@ class GestureModel:
         vertical = [shoulder[0], shoulder[1] - 0.2]
         shoulder_angle = calculate_angle(elbow, shoulder, vertical)
 
-        grip = 0
+        grip = self.prev_grip
         if hand:
             thumb_tip, index_tip, index_mcp, hand_wrist = hand
             tip_dist = np.linalg.norm(np.array(thumb_tip) - np.array(index_tip))
@@ -75,12 +95,29 @@ class GestureModel:
 
             if ref_dist > 0:
                 ratio = tip_dist / ref_dist
-                grip = 1 if ratio < 0.3 else 0
+                if ratio < 0.25:
+                    grip = 1
+                elif ratio > 0.35:
+                    grip = 0
 
-        s2 = int(np.interp(elbow_angle, [30, 160], [0, 180]))
-        s3 = int(np.interp(shoulder_angle, [20, 150], [0, 180]))
-        s2 = self.smooth(self.s2_buffer, s2)
-        s3 = self.smooth(self.s3_buffer, s3)
+        elbow_angle = float(np.clip(elbow_angle, *ELBOW_RANGE))
+        shoulder_angle = float(np.clip(shoulder_angle, *SHOULDER_RANGE))
+
+        raw_s2 = float(np.interp(elbow_angle, ELBOW_RANGE, [0, 180]))
+        raw_s3 = float(np.interp(shoulder_angle, SHOULDER_RANGE, [0, 180]))
+
+        s2_alpha = self.get_adaptive_alpha(raw_s2, self.prev_s2)
+        s3_alpha = self.get_adaptive_alpha(raw_s3, self.prev_s3)
+
+        smooth_s2 = self.smooth(raw_s2, self.prev_s2, s2_alpha)
+        smooth_s3 = self.smooth(raw_s3, self.prev_s3, s3_alpha)
+
+        s2 = int(round(self.limit_speed(smooth_s2, self.prev_s2)))
+        s3 = int(round(self.limit_speed(smooth_s3, self.prev_s3)))
+
+        self.prev_s2 = s2
+        self.prev_s3 = s3
+        self.prev_grip = grip
         s1 = 180 if grip else 0
 
         return s1, s2, s3
