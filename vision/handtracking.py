@@ -41,3 +41,35 @@ class HolisticTracker:
         hand_result = self.hand.detect_for_video(mp_image, self.timestamp)
 
         return pose_result, hand_result
+
+    def draw(self, frame, pose_result, hand_result):
+        h, w, _ = frame.shape
+
+        if pose_result.pose_landmarks:
+            landmarks = pose_result.pose_landmarks[0]
+
+            for lm in landmarks:
+                x = int(lm.x * w)
+                y = int(lm.y * h)
+                cv2.circle(frame, (x, y), 5, (0, 255, 0), -1)
+
+            def get_point(i):
+                return int(landmarks[i].x * w), int(landmarks[i].y * h)
+
+            shoulder = get_point(12)
+            elbow = get_point(14)
+            wrist = get_point(16)
+
+            cv2.line(frame, shoulder, elbow, (255, 0, 0), 3)
+            cv2.line(frame, elbow, wrist, (255, 0, 0), 3)
+
+        if hand_result.hand_landmarks:
+            landmarks = hand_result.hand_landmarks[0]
+
+            for lm in landmarks:
+                x = int(lm.x * w)
+                y = int(lm.y * h)
+                cv2.circle(frame, (x, y), 4, (0, 0, 255), -1)
+
+        return frame
+    

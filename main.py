@@ -16,7 +16,7 @@ while True:
 
     servo_angles = model.compute_servo_angles(pose_result, hand_result)
 
-    #frame = tracker.draw(frame, results)
+    frame = tracker.draw(frame, pose_result, hand_result)
 
     if servo_angles:
         s1, s2, s3 = servo_angles
