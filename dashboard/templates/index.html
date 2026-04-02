@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robotic Arm Dashboard</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #eef4f7;
+            --panel: #ffffff;
+            --ink: #16313f;
+            --grid: #d5e2e8;
+            --accent: #0f8b8d;
+            --joint: #ff7f50;
+            --grip-open: #2e8b57;
+            --grip-closed: #d64550;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background:
+                radial-gradient(circle at top, #ffffff 0%, #eef4f7 45%, #ddeaf0 100%);
+            color: var(--ink);
+        }
+
+        .panel {
+            width: min(92vw, 760px);
+            padding: 24px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 22px 60px rgba(22, 49, 63, 0.16);
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 1.8rem;
+        }
+
+        p {
+            margin: 0 0 18px;
+            color: rgba(22, 49, 63, 0.78);
+        }
+
+        canvas {
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            display: block;
+            margin: 0 auto 18px;
+            border-radius: 16px;
+            background:
+                linear-gradient(180deg, #fbfdfe 0%, #edf5f8 100%);
+            border: 1px solid #d7e4ea;
+        }
+
+        .readout {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .card {
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: #f6fafc;
+            border: 1px solid #d9e7ec;
+        }
+
+        .label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: rgba(22, 49, 63, 0.68);
+        }
+
+        .value {
+            margin-top: 4px;
+            font-size: 1.45rem;
+            font-weight: 700;
+        }
+
+        @media (max-width: 640px) {
+            .readout {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <section class="panel">
+        <h1>Gesture-Controlled Arm</h1>
+        <p>Live digital twin driven by the latest servo state from the camera pipeline.</p>
+
+        <canvas id="armCanvas" width="600" height="400"></canvas>
+
+        <div class="readout">
+            <div class="card">
+                <div class="label">S1 Grip</div>
+                <div class="value" id="s1Value">0</div>
+            </div>
+            <div class="card">
+                <div class="label">S2 Elbow</div>
+                <div class="value" id="s2Value">0</div>
+            </div>
+            <div class="card">
+                <div class="label">S3 Shoulder</div>
+                <div class="value" id="s3Value">0</div>
+            </div>
+            <div class="card">
+                <div class="label">S4 Base</div>
+                <div class="value" id="s4Value">0</div>
+            </div>
+        </div>
+    </section>
+
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const canvas = document.getElementById("armCanvas");
+        const ctx = canvas.getContext("2d");
+        const readouts = {
+            s1: document.getElementById("s1Value"),
+            s2: document.getElementById("s2Value"),
+            s3: document.getElementById("s3Value"),
+            s4: document.getElementById("s4Value")
+        };
+
+        const armLengths = {
+            base: 55,
+            upper: 110,
+            forearm: 90,
+            wrist: 45
+        };
+
+        function toRadians(deg) {
+            return deg * Math.PI / 180;
+        }
+
+        function drawSegment(fromX, fromY, toX, toY, width, color) {
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            ctx.lineWidth = width;
+            ctx.lineCap = "round";
+            ctx.strokeStyle = color;
+            ctx.stroke();
+        }
+
+        function drawJoint(x, y, radius) {
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fillStyle = "#ff7f50";
+            ctx.fill();
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = "#d5e2e8";
+            ctx.lineWidth = 1;
+
+            for (let x = 40; x < canvas.width; x += 40) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+
+            for (let y = 40; y < canvas.height; y += 40) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+
+        function updateReadout(state) {
+            readouts.s1.textContent = state.s1;
+            readouts.s2.textContent = state.s2;
+            readouts.s3.textContent = state.s3;
+            readouts.s4.textContent = state.s4;
+        }
+
+        function drawArm(state) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+
+            const basePivot = { x: canvas.width / 2, y: canvas.height - 55 };
+            const baseAngle = toRadians((state.s4 ?? 0) - 90);
+            const shoulderAngle = baseAngle + toRadians((state.s3 ?? 0) - 90);
+            const elbowAngle = shoulderAngle + toRadians((state.s2 ?? 0) - 90);
+
+            const baseJoint = {
+                x: basePivot.x + armLengths.base * Math.cos(baseAngle),
+                y: basePivot.y - armLengths.base * Math.sin(baseAngle)
+            };
+            const elbowJoint = {
+                x: baseJoint.x + armLengths.upper * Math.cos(shoulderAngle),
+                y: baseJoint.y - armLengths.upper * Math.sin(shoulderAngle)
+            };
+            const wristJoint = {
+                x: elbowJoint.x + armLengths.forearm * Math.cos(elbowAngle),
+                y: elbowJoint.y - armLengths.forearm * Math.sin(elbowAngle)
+            };
+            const handAngle = elbowAngle;
+            const wristTip = {
+                x: wristJoint.x + armLengths.wrist * Math.cos(handAngle),
+                y: wristJoint.y - armLengths.wrist * Math.sin(handAngle)
+            };
+
+            ctx.fillStyle = "#16313f";
+            ctx.fillRect(basePivot.x - 28, basePivot.y, 56, 26);
+
+            drawSegment(basePivot.x, basePivot.y, baseJoint.x, baseJoint.y, 16, "#0f8b8d");
+            drawSegment(baseJoint.x, baseJoint.y, elbowJoint.x, elbowJoint.y, 14, "#197278");
+            drawSegment(elbowJoint.x, elbowJoint.y, wristJoint.x, wristJoint.y, 12, "#2d5f73");
+            drawSegment(wristJoint.x, wristJoint.y, wristTip.x, wristTip.y, 8, "#3e8b8f");
+
+            const gripColor = (state.s1 ?? 0) > 90 ? "#d64550" : "#2e8b57";
+            const gripSpread = (state.s1 ?? 0) > 90 ? 10 : 22;
+            const upperFingerAngle = handAngle + toRadians(gripSpread);
+            const lowerFingerAngle = handAngle - toRadians(gripSpread);
+            const fingerLength = 28;
+
+            drawSegment(
+                wristTip.x,
+                wristTip.y,
+                wristTip.x + fingerLength * Math.cos(upperFingerAngle),
+                wristTip.y - fingerLength * Math.sin(upperFingerAngle),
+                5,
+                gripColor
+            );
+            drawSegment(
+                wristTip.x,
+                wristTip.y,
+                wristTip.x + fingerLength * Math.cos(lowerFingerAngle),
+                wristTip.y - fingerLength * Math.sin(lowerFingerAngle),
+                5,
+                gripColor
+            );
+
+            drawJoint(basePivot.x, basePivot.y, 12);
+            drawJoint(baseJoint.x, baseJoint.y, 10);
+            drawJoint(elbowJoint.x, elbowJoint.y, 9);
+            drawJoint(wristJoint.x, wristJoint.y, 8);
+            drawJoint(wristTip.x, wristTip.y, 6);
+
+            updateReadout(state);
+        }
+
+        socket.on("update", data => {
+            drawArm(data);
+        });
+
+        drawArm({ s1: 0, s2: 0, s3: 0, s4: 0 });
+    </script>
+</body>
+</html>

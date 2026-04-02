@@ -1,6 +1,7 @@
 import threading
 
 import cv2
+from dashboard.server import update_state, socketio, app
 from vision.camera import Camera
 from vision.handtracking import HolisticTracker
 from vision.gesture_model import GestureModel
@@ -38,11 +39,19 @@ def processing_loop(tracker, model):
 
         if angles:
             servo_angles = angles
+            s1, s2, s3, s4 = servo_angles
+            update_state(s1, s2, s3, s4)
+
+
+def run_server():
+    socketio.run(app, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=True)
 
 
 cam = Camera()
 tracker = HolisticTracker()
 model = GestureModel()
+
+threading.Thread(target=run_server, daemon=True).start()
 
 cam_thread = threading.Thread(target=camera_loop, args=(cam,))
 proc_thread = threading.Thread(target=processing_loop, args=(tracker, model))
