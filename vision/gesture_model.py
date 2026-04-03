@@ -47,11 +47,20 @@ class GestureModel:
         velocity = abs(current - prev)
         return 0.7 if velocity > 10 else 0.3
 
-    def compute_torso_angle(self, left, right):
-        dx = right[0] - left[0]
-        dy = right[1] - left[1]
-        angle = np.arctan2(dy, dx)
-        return np.degrees(angle)
+    def compute_angle(self, p1, p2):
+        dx = p2[0] - p1[0]
+        dy = p2[1] - p1[1]
+        return np.degrees(np.arctan2(dy, dx))
+
+    def compute_torso_angle(self, left_shoulder, right_shoulder, left_hip, right_hip):
+        hip_angle = self.compute_angle(left_hip, right_hip)
+        shoulder_angle = self.compute_angle(left_shoulder, right_shoulder)
+
+        torso_angle = 0.7 * hip_angle + 0.3 * shoulder_angle
+        if abs(torso_angle) < 5:
+            torso_angle = 0
+
+        return torso_angle
 
     def get_pose_points(self, pose_result):
         if not pose_result.pose_landmarks:
@@ -59,7 +68,7 @@ class GestureModel:
 
         lm = pose_result.pose_landmarks[0]
 
-        if any(lm[i].visibility < 0.5 for i in (12, 14, 16)):
+        if any(lm[i].visibility < 0.5 for i in (11, 12, 14, 16, 23, 24)):
             return None
 
         shoulder = [lm[12].x, lm[12].y]
@@ -67,8 +76,10 @@ class GestureModel:
         wrist = [lm[16].x, lm[16].y]
         left_shoulder = [lm[11].x, lm[11].y]
         right_shoulder = [lm[12].x, lm[12].y]
+        left_hip = [lm[23].x, lm[23].y]
+        right_hip = [lm[24].x, lm[24].y]
 
-        return shoulder, elbow, wrist, left_shoulder, right_shoulder
+        return shoulder, elbow, wrist, left_shoulder, right_shoulder, left_hip, right_hip
 
     def get_hand_points(self, hand_result):
         if not hand_result.hand_landmarks:
@@ -90,12 +101,17 @@ class GestureModel:
         if pose is None:
             return None
 
-        shoulder, elbow, wrist, left_shoulder, right_shoulder = pose
+        shoulder, elbow, wrist, left_shoulder, right_shoulder, left_hip, right_hip = pose
 
         elbow_angle = calculate_angle(shoulder, elbow, wrist)
         vertical = [shoulder[0], shoulder[1] - 0.2]
         shoulder_angle = calculate_angle(elbow, shoulder, vertical)
-        torso_angle = self.compute_torso_angle(left_shoulder, right_shoulder)
+        torso_angle = self.compute_torso_angle(
+            left_shoulder,
+            right_shoulder,
+            left_hip,
+            right_hip,
+        )
 
         grip = self.prev_grip
         if hand:
@@ -115,11 +131,11 @@ class GestureModel:
 
         raw_s2 = float(np.interp(elbow_angle, ELBOW_RANGE, [0, 180]))
         raw_s3 = float(np.interp(shoulder_angle, SHOULDER_RANGE, [0, 180]))
-        raw_s4 = float(np.clip(np.interp(torso_angle, [-45, 45], [0, 180]), 0, 180))
+        raw_s4 = float(int(np.clip(np.interp(torso_angle, [-45, 45], [0, 180]), 0, 180)))
 
         s2_alpha = self.get_adaptive_alpha(raw_s2, self.prev_s2)
         s3_alpha = self.get_adaptive_alpha(raw_s3, self.prev_s3)
-        s4_alpha = self.get_adaptive_alpha(raw_s4, self.prev_s4)
+        s4_alpha = 0.2
 
         smooth_s2 = self.smooth(raw_s2, self.prev_s2, s2_alpha)
         smooth_s3 = self.smooth(raw_s3, self.prev_s3, s3_alpha)
@@ -127,7 +143,7 @@ class GestureModel:
 
         s2 = int(round(self.limit_speed(smooth_s2, self.prev_s2)))
         s3 = int(round(self.limit_speed(smooth_s3, self.prev_s3)))
-        s4 = int(round(self.limit_speed(smooth_s4, self.prev_s4)))
+        s4 = int(round(self.limit_speed(smooth_s4, self.prev_s4, max_step=3)))
 
         self.prev_s2 = s2
         self.prev_s3 = s3
