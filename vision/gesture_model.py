@@ -2,7 +2,6 @@ import numpy as np
 
 ELBOW_RANGE = (20, 150)
 SHOULDER_RANGE = (10, 160)
-TORSO_RANGE = (-45, 45)
 DEFAULT_SERVO_ANGLES = (90, 90, 90, 90)
 
 
@@ -52,7 +51,6 @@ class GestureModel:
         self.prev_s2 = DEFAULT_SERVO_ANGLES[1]
         self.prev_s3 = DEFAULT_SERVO_ANGLES[2]
         self.prev_s4 = 90
-        self.center_offset = None
         self.prev_grip = 0
         self.prev_pose_points = None
         self.prev_output = DEFAULT_SERVO_ANGLES
@@ -93,39 +91,21 @@ class GestureModel:
         velocity = abs(current - float(prev))
         return 0.7 if velocity > 10 else 0.3
 
-    def compute_angle(self, p1, p2):
-        if not (is_valid_point(p1) and is_valid_point(p2)):
-            return np.nan
+    def compute_torso_offset(self, left_hip, right_hip):
+        if not (is_valid_point(left_hip) and is_valid_point(right_hip)):
+            raise ValueError("Invalid torso center inputs")
 
-        dx = p2[0] - p1[0]
-        dy = p2[1] - p1[1]
+        center_x = (left_hip[0] + right_hip[0]) / 2
+        if not is_finite_number(center_x):
+            raise ValueError("Invalid torso center position")
 
-        if not (is_finite_number(dx) and is_finite_number(dy)):
-            return np.nan
+        offset = center_x - 0.5
+        offset *= 2
 
-        return float(np.degrees(np.arctan2(dy, dx)))
+        if abs(offset) < 0.05:
+            offset = 0.0
 
-    def compute_torso_angle(self, left_shoulder, right_shoulder, left_hip, right_hip):
-        hip_angle = self.compute_angle(left_hip, right_hip)
-        shoulder_angle = self.compute_angle(left_shoulder, right_shoulder)
-
-        if not (is_finite_number(hip_angle) and is_finite_number(shoulder_angle)):
-            raise ValueError("Invalid torso angle inputs")
-
-        torso_angle = 0.7 * hip_angle + 0.3 * shoulder_angle
-
-        if self.center_offset is None:
-            self.center_offset = torso_angle
-
-        torso_angle = torso_angle - self.center_offset
-
-        if abs(torso_angle) < 5:
-            torso_angle = 0.0
-
-        torso_angle = -torso_angle
-        torso_angle *= 1.5
-
-        return self.safe_number(torso_angle, 0.0)
+        return self.safe_number(offset, 0.0)
 
     def landmark_to_point(self, landmark):
         x = getattr(landmark, "x", None)
@@ -232,7 +212,7 @@ class GestureModel:
                 self.prev_output = previous_output
                 return self.debug_output(previous_output)
 
-            shoulder, elbow, wrist, l_sh, r_sh, l_hip, r_hip = pose
+            shoulder, elbow, wrist, _l_sh, _r_sh, l_hip, r_hip = pose
 
             elbow_angle = calculate_angle(shoulder, elbow, wrist)
             vertical = [shoulder[0], shoulder[1] - 0.2]
@@ -263,17 +243,16 @@ class GestureModel:
             s2 = self.finalize_servo(smooth_s2, self.prev_s2, previous_output[1])
             s3 = self.finalize_servo(smooth_s3, self.prev_s3, previous_output[2])
             try:
-                torso_angle = self.compute_torso_angle(l_sh, r_sh, l_hip, r_hip)
-                if not is_finite_number(torso_angle):
-                    raise ValueError("Computed torso angle is not finite")
+                offset = self.compute_torso_offset(l_hip, r_hip)
+                if not is_finite_number(offset):
+                    raise ValueError("Computed torso offset is not finite")
 
-                s4 = np.interp(torso_angle, [-90, 90], [0, 180])
-                s4 = int(np.clip(s4, 0, 180))
+                s4 = int(np.interp(offset, [-1, 1], [0, 180]))
 
-                alpha = 0.4
+                alpha = 0.3
                 s4 = int(alpha * s4 + (1 - alpha) * self.prev_s4)
 
-                max_step = 4
+                max_step = 3
                 delta = s4 - self.prev_s4
 
                 if abs(delta) > max_step:
