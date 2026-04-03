@@ -51,7 +51,8 @@ class GestureModel:
     def __init__(self):
         self.prev_s2 = DEFAULT_SERVO_ANGLES[1]
         self.prev_s3 = DEFAULT_SERVO_ANGLES[2]
-        self.prev_s4 = DEFAULT_SERVO_ANGLES[3]
+        self.prev_s4 = 90
+        self.center_offset = None
         self.prev_grip = 0
         self.prev_pose_points = None
         self.prev_output = DEFAULT_SERVO_ANGLES
@@ -108,20 +109,21 @@ class GestureModel:
         hip_angle = self.compute_angle(left_hip, right_hip)
         shoulder_angle = self.compute_angle(left_shoulder, right_shoulder)
 
-        weighted_angles = []
-        if is_finite_number(hip_angle):
-            weighted_angles.append((0.7, hip_angle))
-        if is_finite_number(shoulder_angle):
-            weighted_angles.append((0.3, shoulder_angle))
+        if not (is_finite_number(hip_angle) and is_finite_number(shoulder_angle)):
+            raise ValueError("Invalid torso angle inputs")
 
-        if not weighted_angles:
-            return 0.0
+        torso_angle = 0.7 * hip_angle + 0.3 * shoulder_angle
 
-        total_weight = sum(weight for weight, _ in weighted_angles)
-        torso_angle = sum(weight * angle for weight, angle in weighted_angles) / total_weight
+        if self.center_offset is None:
+            self.center_offset = torso_angle
+
+        torso_angle = torso_angle - self.center_offset
 
         if abs(torso_angle) < 5:
             torso_angle = 0.0
+
+        torso_angle = -torso_angle
+        torso_angle *= 1.5
 
         return self.safe_number(torso_angle, 0.0)
 
@@ -236,20 +238,6 @@ class GestureModel:
             vertical = [shoulder[0], shoulder[1] - 0.2]
             shoulder_angle = calculate_angle(elbow, shoulder, vertical)
 
-            hip_angle = self.compute_angle(l_hip, r_hip)
-            torso_shoulder_angle = self.compute_angle(l_sh, r_sh)
-
-            try:
-                torso_angle = 0.7 * hip_angle + 0.3 * torso_shoulder_angle
-            except Exception:
-                torso_angle = 0
-
-            if not is_finite_number(torso_angle) or np.isnan(torso_angle):
-                torso_angle = 0
-
-            if abs(torso_angle) < 5:
-                torso_angle = 0
-
             grip = self.prev_grip
             if hand:
                 thumb_tip, index_tip, index_mcp, hand_wrist = hand
@@ -265,20 +253,34 @@ class GestureModel:
 
             raw_s2 = self.map_angle_to_servo(elbow_angle, ELBOW_RANGE, previous_output[1])
             raw_s3 = self.map_angle_to_servo(shoulder_angle, SHOULDER_RANGE, previous_output[2])
-            raw_s4 = float(np.interp(torso_angle, TORSO_RANGE, [0, 180]))
-            raw_s4 = float(np.clip(raw_s4, 0, 180))
 
             s2_alpha = self.get_adaptive_alpha(raw_s2, self.prev_s2)
             s3_alpha = self.get_adaptive_alpha(raw_s3, self.prev_s3)
-            s4_alpha = 0.2
 
             smooth_s2 = self.smooth(raw_s2, self.prev_s2, s2_alpha)
             smooth_s3 = self.smooth(raw_s3, self.prev_s3, s3_alpha)
-            smooth_s4 = self.smooth(raw_s4, self.prev_s4, s4_alpha)
 
             s2 = self.finalize_servo(smooth_s2, self.prev_s2, previous_output[1])
             s3 = self.finalize_servo(smooth_s3, self.prev_s3, previous_output[2])
-            s4 = self.finalize_servo(smooth_s4, self.prev_s4, previous_output[3], max_step=3)
+            try:
+                torso_angle = self.compute_torso_angle(l_sh, r_sh, l_hip, r_hip)
+                if not is_finite_number(torso_angle):
+                    raise ValueError("Computed torso angle is not finite")
+
+                s4 = np.interp(torso_angle, [-90, 90], [0, 180])
+                s4 = int(np.clip(s4, 0, 180))
+
+                alpha = 0.4
+                s4 = int(alpha * s4 + (1 - alpha) * self.prev_s4)
+
+                max_step = 4
+                delta = s4 - self.prev_s4
+
+                if abs(delta) > max_step:
+                    s4 = int(self.prev_s4 + max_step * np.sign(delta))
+            except Exception:
+                s4 = int(self.prev_s4)
+
             s1 = 180 if grip else 0
 
             if any(v is None for v in (s1, s2, s3, s4)):
