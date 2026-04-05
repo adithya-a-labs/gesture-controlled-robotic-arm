@@ -1,7 +1,7 @@
 import numpy as np
 
-ELBOW_RANGE = (40, 150)
-ELBOW_SERVO_RANGE = (30, 150)
+ELBOW_RANGE = (60, 140)
+ELBOW_SERVO_RANGE = (40, 140)
 SHOULDER_DIRECTION_RANGE = (-90, 90)
 SHOULDER_SERVO_RANGE = (20, 160)
 DEFAULT_SERVO_ANGLES = (90, 90, 90, 90)
@@ -220,12 +220,19 @@ class GestureModelVector:
 
             elbow_angle = calculate_angle(shoulder, elbow, wrist)
 
-            if all(is_valid_point(point) for point in (shoulder, wrist)):
-                vec_x = wrist[0] - shoulder[0]
-                vec_y = wrist[1] - shoulder[1]
+            if all(is_valid_point(point) for point in (shoulder, elbow)):
+                vec_x = elbow[0] - shoulder[0]
+                vec_y = elbow[1] - shoulder[1]
+                mag = np.sqrt(vec_x**2 + vec_y**2)
+                if mag != 0:
+                    vec_x /= mag
+                    vec_y /= mag
+
                 shoulder_angle = np.degrees(np.arctan2(-vec_y, vec_x))
+                vertical = elbow[1] - shoulder[1]
+                combined = 0.7 * shoulder_angle + 0.3 * (vertical * 180)
             else:
-                shoulder_angle = np.nan
+                combined = np.nan
 
             grip = self.prev_grip
             if hand:
@@ -240,25 +247,24 @@ class GestureModelVector:
                     elif ratio > 0.35:
                         grip = 0
 
-            raw_s2 = self.map_range(elbow_angle, ELBOW_RANGE, ELBOW_SERVO_RANGE, previous_output[1])
-            raw_s2 = self.safe_number(np.clip(raw_s2, *ELBOW_SERVO_RANGE), previous_output[1])
+            if is_finite_number(elbow_angle):
+                s2 = np.interp(elbow_angle, ELBOW_RANGE, ELBOW_SERVO_RANGE)
+                s2 = self.safe_number(np.clip(s2, *ELBOW_SERVO_RANGE), previous_output[1])
+            else:
+                s2 = previous_output[1]
 
-            raw_s3 = self.map_range(
-                shoulder_angle,
-                SHOULDER_DIRECTION_RANGE,
-                SHOULDER_SERVO_RANGE,
-                previous_output[2],
-            )
-            raw_s3 = self.safe_number(np.clip(raw_s3, *SHOULDER_SERVO_RANGE), previous_output[2])
+            if is_finite_number(combined):
+                s3 = np.interp(combined, SHOULDER_DIRECTION_RANGE, SHOULDER_SERVO_RANGE)
+                s3 = self.safe_number(np.clip(s3, *SHOULDER_SERVO_RANGE), previous_output[2])
+            else:
+                s3 = previous_output[2]
 
-            s2_alpha = self.get_adaptive_alpha(raw_s2, self.prev_s2)
-            s3_alpha = self.get_adaptive_alpha(raw_s3, self.prev_s3)
+            alpha = 0.4
+            s2 = alpha * s2 + (1 - alpha) * self.prev_s2
+            s3 = alpha * s3 + (1 - alpha) * self.prev_s3
 
-            smooth_s2 = self.smooth(raw_s2, self.prev_s2, s2_alpha)
-            smooth_s3 = self.smooth(raw_s3, self.prev_s3, s3_alpha)
-
-            s2 = self.finalize_servo(smooth_s2, self.prev_s2, previous_output[1])
-            s3 = self.finalize_servo(smooth_s3, self.prev_s3, previous_output[2])
+            s2 = int(round(np.clip(self.safe_number(s2, previous_output[1]), *ELBOW_SERVO_RANGE)))
+            s3 = int(round(np.clip(self.safe_number(s3, previous_output[2]), *SHOULDER_SERVO_RANGE)))
 
             s2 = int(np.clip(s2, *ELBOW_SERVO_RANGE))
             s3 = int(np.clip(s3, *SHOULDER_SERVO_RANGE))
@@ -285,7 +291,7 @@ class GestureModelVector:
             s1 = 180 if grip else 0
             output = (
                 int(np.clip(self.safe_number(s1, previous_output[0]), 0, 180)),
-                int(np.clip(self.safe_number(s2, previous_output[1]), 30, 150)),
+                int(np.clip(self.safe_number(s2, previous_output[1]), *ELBOW_SERVO_RANGE)),
                 int(np.clip(self.safe_number(s3, previous_output[2]), 20, 160)),
                 int(np.clip(self.safe_number(s4, previous_output[3]), 0, 180)),
             )

@@ -258,7 +258,7 @@
                     <div class="hint">
                         Link lengths are fixed at <strong>L1 = 3</strong> and <strong>L2 = 3</strong>.
                         Base yaw comes from <strong>S4</strong>, shoulder direction from <strong>S3</strong>,
-                        and elbow bend from the relative angle <strong>S2 - S3</strong>.
+                        and elbow bend from the softened relative angle <strong>0.8 * (S2 - S3)</strong>.
                     </div>
                 </div>
             </div>
@@ -530,7 +530,7 @@
             };
 
             const theta1 = THREE.MathUtils.degToRad(state.s3 - 90);
-            const theta2 = THREE.MathUtils.degToRad(state.s2 - state.s3);
+            const theta2 = THREE.MathUtils.degToRad(0.8 * (state.s2 - state.s3));
 
             base.rotation.y = THREE.MathUtils.degToRad(state.s4);
             shoulder.rotation.z = theta1;
