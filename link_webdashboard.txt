@@ -1,2 +1,4 @@
 http://localhost:5000
 http://localhost:5000/3d
+http://localhost:5000/3d-fk
+http://localhost:5000/3d-vector
