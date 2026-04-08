@@ -32,6 +32,11 @@ def dashboard3d_ik():
     return render_template("index3d_ik.html")
 
 
+@app.route("/pick-sim")
+def pick_sim():
+    return render_template("index_pick_sim.html")
+
+
 @socketio.on("connect")
 def handle_connect():
     emit("update", current_state)

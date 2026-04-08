@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Robotic Arm Pick Simulation</title>
+    <title>Pick and Place Simulation</title>
     <style>
         :root {
             color-scheme: dark;
-            --bg-top: #153044;
-            --bg-bottom: #04090f;
-            --panel: rgba(8, 18, 28, 0.84);
-            --panel-soft: rgba(13, 27, 39, 0.88);
-            --border: rgba(127, 191, 211, 0.16);
-            --text: #eff8ff;
-            --muted: #9fb8c7;
-            --accent: #7ae3c6;
-            --accent-strong: #26c89e;
-            --warn: #ffcf7d;
+            --bg-1: #09131b;
+            --bg-2: #03070b;
+            --panel: rgba(8, 16, 22, 0.92);
+            --panel-border: rgba(124, 187, 210, 0.18);
+            --text: #f2f7fb;
+            --muted: #9fb6c6;
+            --accent: #79e0c3;
+            --accent-strong: #2cc99e;
+            --danger: #ff5a5a;
+            --card: rgba(15, 29, 39, 0.96);
         }
 
         * {
@@ -26,43 +26,43 @@
         body {
             margin: 0;
             min-height: 100vh;
-            font-family: "Space Grotesk", "Segoe UI", sans-serif;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             color: var(--text);
             background:
-                radial-gradient(circle at top left, rgba(44, 116, 143, 0.42), transparent 34%),
-                radial-gradient(circle at bottom right, rgba(32, 74, 97, 0.26), transparent 28%),
-                linear-gradient(180deg, var(--bg-top) 0%, #091722 52%, var(--bg-bottom) 100%);
+                radial-gradient(circle at top left, rgba(57, 127, 158, 0.28), transparent 32%),
+                radial-gradient(circle at bottom right, rgba(24, 66, 88, 0.35), transparent 28%),
+                linear-gradient(180deg, var(--bg-1) 0%, #081019 48%, var(--bg-2) 100%);
         }
 
-        .dashboard {
+        .layout {
             min-height: 100vh;
-            padding: 24px;
+            padding: 20px;
             display: grid;
-            grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.9fr);
-            gap: 24px;
+            grid-template-columns: minmax(0, 1.75fr) minmax(320px, 0.9fr);
+            gap: 20px;
         }
 
         .panel {
+            border-radius: 24px;
+            border: 1px solid var(--panel-border);
             background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: 26px;
-            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
-            backdrop-filter: blur(16px);
+            box-shadow: 0 24px 72px rgba(0, 0, 0, 0.28);
+            backdrop-filter: blur(14px);
         }
 
-        .viewport {
+        .sim-panel {
             position: relative;
             overflow: hidden;
-            min-height: 76vh;
+            min-height: 78vh;
         }
 
         #sceneMount {
             width: 100%;
             height: 100%;
-            min-height: 76vh;
+            min-height: 78vh;
         }
 
-        .overlay {
+        .sim-overlay {
             position: absolute;
             inset: 0;
             pointer-events: none;
@@ -72,27 +72,26 @@
             padding: 22px;
         }
 
-        .headline,
-        .footer-bar {
+        .header-row,
+        .footer-row {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
             gap: 16px;
         }
 
         .eyebrow {
             margin: 0 0 10px;
-            letter-spacing: 0.2em;
+            font-size: 0.78rem;
+            letter-spacing: 0.16em;
             text-transform: uppercase;
             color: var(--accent);
-            font-size: 0.76rem;
         }
 
         h1 {
             margin: 0;
-            font-size: clamp(2rem, 2vw + 1rem, 3.2rem);
-            line-height: 1.02;
             max-width: 12ch;
+            font-size: clamp(2rem, 2.3vw + 1rem, 3.35rem);
+            line-height: 1.02;
         }
 
         .subcopy {
@@ -102,40 +101,40 @@
             line-height: 1.55;
         }
 
-        .phase-pill,
+        .phase-badge,
         .legend {
             border-radius: 999px;
-            background: rgba(4, 11, 17, 0.76);
-            border: 1px solid rgba(127, 191, 211, 0.15);
+            border: 1px solid rgba(124, 187, 210, 0.16);
+            background: rgba(4, 10, 14, 0.78);
         }
 
-        .phase-pill {
+        .phase-badge {
+            min-width: 190px;
             padding: 12px 16px;
-            min-width: 180px;
         }
 
-        .phase-pill span {
+        .phase-badge span {
             display: block;
-            font-size: 0.78rem;
+            font-size: 0.75rem;
             letter-spacing: 0.12em;
             text-transform: uppercase;
             color: var(--muted);
         }
 
-        .phase-pill strong {
+        .phase-badge strong {
             display: block;
             margin-top: 8px;
-            font-size: 1.02rem;
             color: var(--accent);
+            font-size: 1.05rem;
         }
 
         .legend {
-            padding: 12px 16px;
             display: flex;
             flex-wrap: wrap;
-            gap: 12px 18px;
+            gap: 10px 16px;
+            padding: 12px 16px;
             color: var(--muted);
-            font-size: 0.9rem;
+            font-size: 0.92rem;
         }
 
         .legend strong {
@@ -143,84 +142,70 @@
         }
 
         .telemetry {
-            padding: 28px;
+            padding: 24px;
             display: flex;
             flex-direction: column;
-            gap: 18px;
+            gap: 16px;
             background:
-                linear-gradient(180deg, rgba(13, 27, 39, 0.96), rgba(7, 17, 27, 0.9)),
-                var(--panel-soft);
+                linear-gradient(180deg, rgba(12, 25, 34, 0.98), rgba(6, 14, 19, 0.96)),
+                var(--panel);
         }
 
-        .telemetry-header {
+        .telemetry-head {
             display: flex;
             justify-content: space-between;
-            gap: 16px;
             align-items: center;
+            gap: 16px;
         }
 
-        .telemetry-header h2 {
+        .telemetry-head h2 {
             margin: 0;
-            font-size: 1.1rem;
-            letter-spacing: 0.08em;
+            font-size: 1.08rem;
+            letter-spacing: 0.1em;
             text-transform: uppercase;
             color: var(--muted);
         }
 
-        .cycle-chip {
+        .cycle-pill {
             padding: 9px 12px;
             border-radius: 999px;
-            background: rgba(122, 227, 198, 0.09);
-            border: 1px solid rgba(122, 227, 198, 0.16);
             color: var(--accent);
-            font-size: 0.9rem;
+            background: rgba(44, 201, 158, 0.08);
+            border: 1px solid rgba(44, 201, 158, 0.16);
         }
 
-        .status-card {
+        .status-card,
+        .servo-card {
             padding: 18px;
             border-radius: 18px;
-            background: rgba(8, 18, 28, 0.92);
-            border: 1px solid rgba(127, 191, 211, 0.12);
+            border: 1px solid rgba(124, 187, 210, 0.11);
+            background: var(--card);
         }
 
-        .status-label {
+        .status-label,
+        .servo-label {
             display: block;
             font-size: 0.78rem;
-            letter-spacing: 0.11em;
+            letter-spacing: 0.12em;
             text-transform: uppercase;
             color: var(--muted);
         }
 
         .status-value {
             margin-top: 10px;
-            font-size: 1.45rem;
+            color: var(--accent);
+            font-size: 1.5rem;
             font-weight: 700;
-            color: var(--warn);
         }
 
-        .metric-grid {
+        .servo-grid {
             display: grid;
             gap: 14px;
         }
 
-        .metric {
-            padding: 18px;
-            border-radius: 18px;
-            background: rgba(8, 18, 28, 0.92);
-            border: 1px solid rgba(127, 191, 211, 0.12);
-        }
-
-        .metric-label {
-            display: block;
-            font-size: 0.8rem;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: var(--muted);
-        }
-
-        .metric-value {
+        .servo-value {
             margin-top: 10px;
-            font-size: clamp(1.9rem, 1.5vw + 1.2rem, 2.7rem);
+            font-size: clamp(1.8rem, 1.5vw + 1.2rem, 2.5rem);
             font-weight: 700;
         }
 
@@ -230,31 +215,31 @@
             line-height: 1.6;
         }
 
-        @media (max-width: 980px) {
-            .dashboard {
+        @media (max-width: 960px) {
+            .layout {
                 grid-template-columns: 1fr;
             }
 
-            .viewport,
+            .sim-panel,
             #sceneMount {
                 min-height: 60vh;
             }
         }
 
-        @media (max-width: 680px) {
-            .dashboard {
+        @media (max-width: 720px) {
+            .layout {
                 padding: 14px;
                 gap: 14px;
             }
 
-            .overlay,
+            .sim-overlay,
             .telemetry {
                 padding: 18px;
             }
 
-            .headline,
-            .footer-bar,
-            .telemetry-header {
+            .header-row,
+            .footer-row,
+            .telemetry-head {
                 flex-direction: column;
                 align-items: flex-start;
             }
@@ -262,71 +247,73 @@
     </style>
 </head>
 <body>
-    <main class="dashboard">
-        <section class="panel viewport">
+    <main class="layout">
+        <section class="panel sim-panel">
             <div id="sceneMount"></div>
 
-            <div class="overlay">
-                <div class="headline">
+            <div class="sim-overlay">
+                <div class="header-row">
                     <div>
-                        <p class="eyebrow">Standalone Demo</p>
-                        <h1>Pick and place arm simulation</h1>
+                        <p class="eyebrow">Standalone Dashboard</p>
+                        <h1>Robotic arm pick and place simulation</h1>
                         <p class="subcopy">
-                            A self-running Three.js dashboard that cycles through approach, lower, grab,
-                            lift, and hold phases without any camera feed, backend, or live socket stream.
+                            The arm continuously approaches the cube, lowers, grabs it, lifts it,
+                            and holds before restarting the cycle. Servo telemetry updates live as
+                            the 3D hierarchy animates in real time.
                         </p>
                     </div>
 
-                    <div class="phase-pill">
+                    <div class="phase-badge">
                         <span>Current phase</span>
-                        <strong id="phaseLabel">MOVE TO OBJECT</strong>
+                        <strong id="phaseLabel">APPROACH</strong>
                     </div>
                 </div>
 
-                <div class="footer-bar">
+                <div class="footer-row">
                     <div class="legend">
-                        <span><strong>S1</strong> gripper</span>
-                        <span><strong>S2</strong> elbow</span>
-                        <span><strong>S3</strong> shoulder</span>
-                        <span><strong>S4</strong> base</span>
+                        <span><strong>S1</strong> Gripper</span>
+                        <span><strong>S2</strong> Elbow</span>
+                        <span><strong>S3</strong> Shoulder</span>
+                        <span><strong>S4</strong> Base</span>
                     </div>
                 </div>
             </div>
         </section>
 
         <aside class="panel telemetry">
-            <div class="telemetry-header">
-                <h2>Servo Telemetry</h2>
-                <div class="cycle-chip">Cycle <span id="cycleCount">1</span></div>
+            <div class="telemetry-head">
+                <h2>Telemetry</h2>
+                <div class="cycle-pill">Cycle <span id="cycleCount">1</span></div>
             </div>
 
             <div class="status-card">
-                <span class="status-label">Motion state</span>
-                <div class="status-value" id="phaseReadout">MOVE TO OBJECT</div>
+                <span class="status-label">Motion phase</span>
+                <div class="status-value" id="phaseReadout">APPROACH</div>
             </div>
 
-            <div class="metric-grid">
-                <div class="metric">
-                    <span class="metric-label">S1 Gripper</span>
-                    <div class="metric-value" id="s1Value">0 deg</div>
+            <div class="servo-grid">
+                <div class="servo-card">
+                    <span class="servo-label">S1</span>
+                    <div class="servo-value" id="s1Value">0°</div>
                 </div>
-                <div class="metric">
-                    <span class="metric-label">S2 Elbow</span>
-                    <div class="metric-value" id="s2Value">90 deg</div>
+                <div class="servo-card">
+                    <span class="servo-label">S2</span>
+                    <div class="servo-value" id="s2Value">90°</div>
                 </div>
-                <div class="metric">
-                    <span class="metric-label">S3 Shoulder</span>
-                    <div class="metric-value" id="s3Value">90 deg</div>
+                <div class="servo-card">
+                    <span class="servo-label">S3</span>
+                    <div class="servo-value" id="s3Value">90°</div>
                 </div>
-                <div class="metric">
-                    <span class="metric-label">S4 Base</span>
-                    <div class="metric-value" id="s4Value">90 deg</div>
+                <div class="servo-card">
+                    <span class="servo-label">S4</span>
+                    <div class="servo-value" id="s4Value">90°</div>
                 </div>
             </div>
 
             <p class="note">
-                The cube starts on the floor, gets attached to the gripper during the grab phase, and resets
-                after each hold so the animation can loop like a demo reel.
+                The cube starts at `(3, 0, 2)`, turns into a carried payload during `GRAB`,
+                follows the gripper through the hierarchy, and resets after `HOLD` so the loop
+                runs continuously.
             </p>
         </aside>
     </main>
@@ -337,208 +324,12 @@
         const phaseLabel = document.getElementById("phaseLabel");
         const phaseReadout = document.getElementById("phaseReadout");
         const cycleCount = document.getElementById("cycleCount");
-        const DEGREE = "\u00B0";
-
         const readouts = {
             s1: document.getElementById("s1Value"),
             s2: document.getElementById("s2Value"),
             s3: document.getElementById("s3Value"),
             s4: document.getElementById("s4Value")
         };
-
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x08131c);
-        scene.fog = new THREE.Fog(0x08131c, 15, 32);
-
-        const camera = new THREE.PerspectiveCamera(
-            45,
-            sceneMount.clientWidth / sceneMount.clientHeight,
-            0.1,
-            100
-        );
-        camera.position.set(8, 6, 8);
-        camera.lookAt(0, 1.8, 0);
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-        renderer.setSize(sceneMount.clientWidth, sceneMount.clientHeight);
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.shadowMap.enabled = true;
-        sceneMount.appendChild(renderer.domElement);
-
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.72);
-        scene.add(ambientLight);
-
-        const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
-        keyLight.position.set(6, 10, 4);
-        keyLight.castShadow = true;
-        scene.add(keyLight);
-
-        const fillLight = new THREE.DirectionalLight(0x69d5ff, 0.45);
-        fillLight.position.set(-5, 4, -6);
-        scene.add(fillLight);
-
-        const grid = new THREE.GridHelper(16, 16, 0x2d8c8d, 0x18384d);
-        grid.position.y = 0;
-        scene.add(grid);
-
-        const floor = new THREE.Mesh(
-            new THREE.CircleGeometry(7.5, 56),
-            new THREE.MeshStandardMaterial({
-                color: 0x0f2330,
-                metalness: 0.18,
-                roughness: 0.92
-            })
-        );
-        floor.rotation.x = -Math.PI / 2;
-        floor.receiveShadow = true;
-        scene.add(floor);
-
-        const robotMaterial = new THREE.MeshStandardMaterial({
-            color: 0x73ddc5,
-            metalness: 0.38,
-            roughness: 0.38
-        });
-
-        const accentMaterial = new THREE.MeshStandardMaterial({
-            color: 0x1f6983,
-            metalness: 0.28,
-            roughness: 0.55
-        });
-
-        const jointMaterial = new THREE.MeshStandardMaterial({
-            color: 0xdfeff7,
-            metalness: 0.6,
-            roughness: 0.22
-        });
-
-        const objectMaterial = new THREE.MeshStandardMaterial({
-            color: 0xffc35f,
-            metalness: 0.18,
-            roughness: 0.45
-        });
-
-        const robot = new THREE.Group();
-        scene.add(robot);
-
-        const basePedestal = new THREE.Mesh(
-            new THREE.CylinderGeometry(1.2, 1.45, 0.55, 32),
-            accentMaterial
-        );
-        basePedestal.position.y = 0.275;
-        basePedestal.castShadow = true;
-        basePedestal.receiveShadow = true;
-        robot.add(basePedestal);
-
-        const base = new THREE.Group();
-        robot.add(base);
-
-        const baseColumn = new THREE.Mesh(
-            new THREE.BoxGeometry(1.35, 1.1, 1.35),
-            robotMaterial
-        );
-        baseColumn.position.y = 0.95;
-        baseColumn.castShadow = true;
-        base.add(baseColumn);
-
-        const shoulderMount = new THREE.Mesh(
-            new THREE.BoxGeometry(0.9, 0.44, 0.9),
-            jointMaterial
-        );
-        shoulderMount.position.y = 1.58;
-        shoulderMount.castShadow = true;
-        base.add(shoulderMount);
-
-        const shoulder = new THREE.Group();
-        shoulder.position.set(0, 1.58, 0);
-        base.add(shoulder);
-
-        const LINK_LENGTH = 3;
-        const LINK_SWEEP = THREE.MathUtils.degToRad(22);
-        const linkEnd = new THREE.Vector3(
-            LINK_LENGTH * Math.cos(LINK_SWEEP),
-            LINK_LENGTH * Math.sin(LINK_SWEEP),
-            0
-        );
-
-        const upperArm = new THREE.Mesh(
-            new THREE.BoxGeometry(LINK_LENGTH, 0.45, 0.45),
-            accentMaterial
-        );
-        upperArm.rotation.z = LINK_SWEEP;
-        upperArm.position.copy(linkEnd.clone().multiplyScalar(0.5));
-        upperArm.castShadow = true;
-        shoulder.add(upperArm);
-
-        const elbowJoint = new THREE.Mesh(
-            new THREE.BoxGeometry(0.55, 0.55, 0.55),
-            jointMaterial
-        );
-        elbowJoint.position.copy(linkEnd);
-        elbowJoint.castShadow = true;
-        shoulder.add(elbowJoint);
-
-        const elbow = new THREE.Group();
-        elbow.position.copy(linkEnd);
-        shoulder.add(elbow);
-
-        const forearm = new THREE.Mesh(
-            new THREE.BoxGeometry(LINK_LENGTH, 0.38, 0.38),
-            robotMaterial
-        );
-        forearm.rotation.z = LINK_SWEEP;
-        forearm.position.copy(linkEnd.clone().multiplyScalar(0.5));
-        forearm.castShadow = true;
-        elbow.add(forearm);
-
-        const wristJoint = new THREE.Mesh(
-            new THREE.BoxGeometry(0.42, 0.42, 0.42),
-            jointMaterial
-        );
-        wristJoint.position.copy(linkEnd);
-        wristJoint.castShadow = true;
-        elbow.add(wristJoint);
-
-        const gripper = new THREE.Group();
-        gripper.position.copy(linkEnd);
-        elbow.add(gripper);
-
-        const gripperBody = new THREE.Mesh(
-            new THREE.BoxGeometry(0.72, 0.34, 0.34),
-            accentMaterial
-        );
-        gripperBody.position.x = 0.36;
-        gripperBody.castShadow = true;
-        gripper.add(gripperBody);
-
-        const leftFinger = new THREE.Mesh(
-            new THREE.BoxGeometry(0.28, 0.12, 0.5),
-            jointMaterial
-        );
-        leftFinger.position.set(0.78, 0.18, -0.2);
-        leftFinger.castShadow = true;
-        gripper.add(leftFinger);
-
-        const rightFinger = new THREE.Mesh(
-            new THREE.BoxGeometry(0.28, 0.12, 0.5),
-            jointMaterial
-        );
-        rightFinger.position.set(0.78, -0.18, 0.2);
-        rightFinger.castShadow = true;
-        gripper.add(rightFinger);
-
-        const pickupCube = new THREE.Mesh(
-            new THREE.BoxGeometry(0.5, 0.5, 0.5),
-            objectMaterial
-        );
-        pickupCube.position.set(3, 0.25, 2);
-        pickupCube.castShadow = true;
-        pickupCube.receiveShadow = true;
-        scene.add(pickupCube);
-
-        const cubeStartPosition = new THREE.Vector3(3, 0.25, 2);
-        const cubeHoldOffset = new THREE.Vector3(0.92, -0.02, 0);
-        let cubeAttached = false;
 
         let state = {
             s1: 0,
@@ -547,58 +338,222 @@
             s4: 90
         };
 
-        const objectHeading = THREE.MathUtils.radToDeg(Math.atan2(cubeStartPosition.z, cubeStartPosition.x));
-
         const phases = [
             {
-                name: "MOVE_TO_OBJECT",
-                label: "MOVE TO OBJECT",
-                duration: 3200,
-                target: { s1: 0, s2: 110, s3: 70, s4: objectHeading }
+                name: "APPROACH",
+                duration: 2300,
+                target: { s1: 0, s2: 110, s3: 70, s4: 45 }
             },
             {
                 name: "LOWER",
-                label: "LOWER",
                 duration: 2200,
-                target: { s1: 0, s2: 130, s3: 50, s4: objectHeading }
+                target: { s1: 0, s2: 130, s3: 50, s4: 45 }
             },
             {
                 name: "GRAB",
-                label: "GRAB",
-                duration: 1600,
-                target: { s1: 180, s2: 130, s3: 50, s4: objectHeading }
+                duration: 1800,
+                target: { s1: 180, s2: 130, s3: 50, s4: 45 }
             },
             {
                 name: "LIFT",
-                label: "LIFT",
-                duration: 2400,
-                target: { s1: 180, s2: 90, s3: 90, s4: objectHeading }
+                duration: 2200,
+                target: { s1: 180, s2: 90, s3: 90, s4: 45 }
             },
             {
                 name: "HOLD",
-                label: "HOLD",
                 duration: 2200,
-                target: { s1: 180, s2: 90, s3: 90, s4: objectHeading }
+                target: { s1: 180, s2: 90, s3: 90, s4: 45 }
             }
         ];
 
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x081119);
+        scene.fog = new THREE.Fog(0x081119, 12, 30);
+
+        const camera = new THREE.PerspectiveCamera(
+            45,
+            sceneMount.clientWidth / sceneMount.clientHeight,
+            0.1,
+            100
+        );
+        camera.position.set(9, 7, 10);
+        camera.lookAt(1.8, 2.2, 1.2);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(sceneMount.clientWidth, sceneMount.clientHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        sceneMount.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.78);
+        scene.add(ambientLight);
+
+        const keyLight = new THREE.DirectionalLight(0xffffff, 1.05);
+        keyLight.position.set(7, 12, 7);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.width = 2048;
+        keyLight.shadow.mapSize.height = 2048;
+        scene.add(keyLight);
+
+        const fillLight = new THREE.DirectionalLight(0x5dd6ff, 0.32);
+        fillLight.position.set(-6, 5, -5);
+        scene.add(fillLight);
+
+        const floor = new THREE.Mesh(
+            new THREE.PlaneGeometry(18, 18),
+            new THREE.MeshStandardMaterial({
+                color: 0x0f2430,
+                metalness: 0.1,
+                roughness: 0.95
+            })
+        );
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -0.25;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        const grid = new THREE.GridHelper(18, 18, 0x2a96a8, 0x183746);
+        grid.position.y = -0.249;
+        scene.add(grid);
+
+        const robotMaterial = new THREE.MeshStandardMaterial({
+            color: 0x78ddc7,
+            metalness: 0.34,
+            roughness: 0.42
+        });
+
+        const accentMaterial = new THREE.MeshStandardMaterial({
+            color: 0x235f74,
+            metalness: 0.28,
+            roughness: 0.48
+        });
+
+        const jointMaterial = new THREE.MeshStandardMaterial({
+            color: 0xe2eef7,
+            metalness: 0.52,
+            roughness: 0.25
+        });
+
+        const cubeMaterial = new THREE.MeshStandardMaterial({
+            color: 0xff3c3c,
+            metalness: 0.18,
+            roughness: 0.5
+        });
+
+        const armRoot = new THREE.Group();
+        scene.add(armRoot);
+
+        const baseMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(1.7, 1.2, 1.7),
+            accentMaterial
+        );
+        baseMesh.position.y = 0.6;
+        baseMesh.castShadow = true;
+        baseMesh.receiveShadow = true;
+        armRoot.add(baseMesh);
+
+        const base = new THREE.Group();
+        base.position.y = 1.2;
+        armRoot.add(base);
+
+        const baseCap = new THREE.Mesh(
+            new THREE.BoxGeometry(0.95, 0.3, 0.95),
+            jointMaterial
+        );
+        baseCap.position.y = 0.15;
+        baseCap.castShadow = true;
+        base.add(baseCap);
+
+        const shoulder = new THREE.Group();
+        shoulder.position.y = 0.15;
+        base.add(shoulder);
+
+        const upperArmGeometry = new THREE.BoxGeometry(3, 0.45, 0.45);
+        upperArmGeometry.translate(1.5, 0, 0);
+        const upperArm = new THREE.Mesh(upperArmGeometry, robotMaterial);
+        upperArm.castShadow = true;
+        shoulder.add(upperArm);
+
+        const elbowJointMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(0.52, 0.52, 0.52),
+            jointMaterial
+        );
+        elbowJointMesh.position.x = 3;
+        elbowJointMesh.castShadow = true;
+        shoulder.add(elbowJointMesh);
+
+        const elbow = new THREE.Group();
+        elbow.position.x = 3;
+        shoulder.add(elbow);
+
+        const forearmGeometry = new THREE.BoxGeometry(3, 0.38, 0.38);
+        forearmGeometry.translate(1.5, 0, 0);
+        const forearm = new THREE.Mesh(forearmGeometry, accentMaterial);
+        forearm.castShadow = true;
+        elbow.add(forearm);
+
+        const wristJointMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(0.42, 0.42, 0.42),
+            jointMaterial
+        );
+        wristJointMesh.position.x = 3;
+        wristJointMesh.castShadow = true;
+        elbow.add(wristJointMesh);
+
+        const gripper = new THREE.Group();
+        gripper.position.x = 3;
+        elbow.add(gripper);
+
+        const gripperBodyGeometry = new THREE.BoxGeometry(0.8, 0.24, 0.46);
+        gripperBodyGeometry.translate(0.4, 0, 0);
+        const gripperBody = new THREE.Mesh(gripperBodyGeometry, robotMaterial);
+        gripperBody.castShadow = true;
+        gripper.add(gripperBody);
+
+        const fingerGeometry = new THREE.BoxGeometry(0.42, 0.12, 0.12);
+        fingerGeometry.translate(0.21, 0, 0);
+
+        const leftFinger = new THREE.Mesh(fingerGeometry, jointMaterial);
+        leftFinger.position.set(0.78, 0.08, 0.17);
+        leftFinger.castShadow = true;
+        gripper.add(leftFinger);
+
+        const rightFinger = new THREE.Mesh(fingerGeometry, jointMaterial);
+        rightFinger.position.set(0.78, -0.08, -0.17);
+        rightFinger.castShadow = true;
+        gripper.add(rightFinger);
+
+        const cube = new THREE.Mesh(
+            new THREE.BoxGeometry(0.5, 0.5, 0.5),
+            cubeMaterial
+        );
+        cube.position.set(3, 0, 2);
+        cube.castShadow = true;
+        cube.receiveShadow = true;
+        scene.add(cube);
+
+        const cubeStartPosition = new THREE.Vector3(3, 0, 2);
+        const cubeCarryOffset = new THREE.Vector3(0.92, 0, 0);
+        let cubeAttached = false;
+
         let phaseIndex = 0;
-        let phaseStart = performance.now();
-        let phaseFrom = { ...state };
-        let completedCycles = 1;
+        let phaseStartedAt = performance.now();
+        let cycleNumber = 1;
 
         function degToRad(value) {
             return THREE.MathUtils.degToRad(Number(value) || 0);
         }
 
-        function easeInOut(value) {
-            return value < 0.5
-                ? 4 * value * value * value
-                : 1 - Math.pow(-2 * value + 2, 3) / 2;
+        function formatServo(value) {
+            return `${Math.round(value)}°`;
         }
 
-        function formatServo(value) {
-            return `${Math.round(value)} ${DEGREE}`;
+        function setPhaseText() {
+            const phaseName = phases[phaseIndex].name;
+            phaseLabel.textContent = phaseName;
+            phaseReadout.textContent = phaseName;
+            cycleCount.textContent = String(cycleNumber);
         }
 
         function updateTelemetry() {
@@ -608,87 +563,62 @@
             readouts.s4.textContent = formatServo(state.s4);
         }
 
-        function updatePhaseText() {
-            const label = phases[phaseIndex].label;
-            phaseLabel.textContent = label;
-            phaseReadout.textContent = label;
-            cycleCount.textContent = String(completedCycles);
-        }
-
         function applyRotations() {
             base.rotation.y = degToRad(state.s4);
             shoulder.rotation.z = degToRad(state.s3 - 90);
             elbow.rotation.z = degToRad(state.s2 - state.s3);
 
-            const closeAmount = THREE.MathUtils.clamp(state.s1 / 180, 0, 1);
-            const gap = THREE.MathUtils.lerp(0.22, 0.05, closeAmount);
-            leftFinger.position.y = gap;
-            rightFinger.position.y = -gap;
-        }
-
-        function resetCube() {
-            scene.updateMatrixWorld(true);
-            scene.attach(pickupCube);
-            pickupCube.position.copy(cubeStartPosition);
-            pickupCube.rotation.set(0, 0, 0);
-            cubeAttached = false;
+            const closeRatio = THREE.MathUtils.clamp(state.s1 / 180, 0, 1);
+            const fingerSpread = THREE.MathUtils.lerp(0.17, 0.045, closeRatio);
+            leftFinger.position.z = fingerSpread;
+            rightFinger.position.z = -fingerSpread;
         }
 
         function attachCubeToGripper() {
             scene.updateMatrixWorld(true);
             gripper.updateMatrixWorld(true);
-            gripper.attach(pickupCube);
-            pickupCube.position.copy(cubeHoldOffset);
-            pickupCube.rotation.set(0, 0, 0);
+            gripper.attach(cube);
+            cube.position.copy(cubeCarryOffset);
+            cube.rotation.set(0, 0, 0);
             cubeAttached = true;
         }
 
-        function beginPhase(index, now) {
-            phaseIndex = index;
-            phaseStart = now;
-            phaseFrom = { ...state };
-            updatePhaseText();
+        function resetCube() {
+            scene.updateMatrixWorld(true);
+            scene.attach(cube);
+            cube.position.copy(cubeStartPosition);
+            cube.rotation.set(0, 0, 0);
+            cubeAttached = false;
         }
 
-        function advancePhase(now) {
-            const nextIndex = (phaseIndex + 1) % phases.length;
-
-            if (nextIndex === 0) {
-                completedCycles += 1;
-                resetCube();
-            }
-
-            beginPhase(nextIndex, now);
-        }
-
-        function updateAnimation(now) {
+        function updatePhase(now) {
             const phase = phases[phaseIndex];
-            const elapsed = now - phaseStart;
-            const progress = Math.min(elapsed / phase.duration, 1);
-            const eased = easeInOut(progress);
+            const elapsed = now - phaseStartedAt;
 
             Object.keys(state).forEach(key => {
-                const start = phaseFrom[key];
-                const end = phase.target[key];
-                state[key] = THREE.MathUtils.lerp(start, end, eased);
+                state[key] = THREE.MathUtils.lerp(state[key], phase.target[key], 0.06);
             });
 
-            if (phase.name === "GRAB" && !cubeAttached && progress >= 0.55) {
+            if (phase.name === "GRAB" && !cubeAttached && elapsed >= phase.duration * 0.45) {
                 attachCubeToGripper();
             }
 
-            applyRotations();
-            updateTelemetry();
+            if (elapsed >= phase.duration) {
+                phaseIndex = (phaseIndex + 1) % phases.length;
+                phaseStartedAt = now;
 
-            if (progress >= 1) {
-                advancePhase(now);
+                if (phaseIndex === 0) {
+                    cycleNumber += 1;
+                    resetCube();
+                }
+
+                setPhaseText();
             }
         }
 
         function handleResize() {
             const width = sceneMount.clientWidth;
             const height = sceneMount.clientHeight;
-
             camera.aspect = width / height;
             camera.updateProjectionMatrix();
             renderer.setSize(width, height);
@@ -698,11 +628,13 @@
 
         function animate(now) {
             requestAnimationFrame(animate);
-            updateAnimation(now);
+            updatePhase(now);
+            applyRotations();
+            updateTelemetry();
             renderer.render(scene, camera);
         }
 
-        updatePhaseText();
+        setPhaseText();
         updateTelemetry();
         applyRotations();
         animate(performance.now());
