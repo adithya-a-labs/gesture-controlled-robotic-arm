@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robotic Arm IK Dashboard</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg-top: #10263a;
+            --bg-bottom: #050d14;
+            --panel: rgba(6, 20, 30, 0.8);
+            --panel-border: rgba(136, 191, 212, 0.14);
+            --text: #edf6fb;
+            --muted: #9fb6c2;
+            --accent: #ffb454;
+            --accent-soft: #57d1d9;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Space Grotesk", "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(255, 180, 84, 0.18), transparent 32%),
+                radial-gradient(circle at right, rgba(87, 209, 217, 0.14), transparent 28%),
+                linear-gradient(180deg, var(--bg-top) 0%, #0a1822 48%, var(--bg-bottom) 100%);
+        }
+
+        .layout {
+            min-height: 100vh;
+            padding: 22px;
+            display: grid;
+            grid-template-columns: minmax(0, 1.8fr) minmax(320px, 0.92fr);
+            gap: 22px;
+        }
+
+        .panel {
+            border-radius: 26px;
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            backdrop-filter: blur(14px);
+            box-shadow: 0 24px 72px rgba(0, 0, 0, 0.34);
+        }
+
+        .viewport {
+            position: relative;
+            overflow: hidden;
+            min-height: 74vh;
+        }
+
+        #sceneMount {
+            width: 100%;
+            height: 100%;
+            min-height: 74vh;
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            padding: 22px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .hero,
+        .footer-strip {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .eyebrow {
+            margin: 0 0 10px;
+            font-size: 0.8rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(1.9rem, 2vw + 1rem, 3rem);
+            line-height: 1.04;
+        }
+
+        .subcopy {
+            margin: 12px 0 0;
+            max-width: 38rem;
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        .pill,
+        .hint {
+            padding: 12px 16px;
+            border-radius: 18px;
+            background: rgba(4, 12, 18, 0.74);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .pill {
+            border-radius: 999px;
+            font-size: 0.92rem;
+            white-space: nowrap;
+        }
+
+        .pill strong,
+        .hint strong {
+            color: var(--accent);
+        }
+
+        .hint {
+            max-width: 28rem;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+
+        .sidebar {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .sidebar h2,
+        .sidebar h3 {
+            margin: 0;
+        }
+
+        .sidebar h2,
+        .sidebar h3 {
+            font-size: 0.98rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .metric-grid,
+        .debug-grid {
+            display: grid;
+            gap: 14px;
+        }
+
+        .card {
+            padding: 18px;
+            border-radius: 18px;
+            background: rgba(5, 14, 20, 0.82);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .label {
+            display: block;
+            font-size: 0.78rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .value {
+            margin-top: 10px;
+            font-size: clamp(1.7rem, 1vw + 1.25rem, 2.4rem);
+            font-weight: 700;
+        }
+
+        .value.accent {
+            color: var(--accent);
+        }
+
+        .debug-line {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 0.96rem;
+            line-height: 1.5;
+        }
+
+        .debug-line + .debug-line {
+            margin-top: 8px;
+        }
+
+        .debug-line span:first-child {
+            color: var(--muted);
+        }
+
+        .debug-line span:last-child {
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+
+        @media (max-width: 980px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .viewport,
+            #sceneMount {
+                min-height: 58vh;
+            }
+        }
+
+        @media (max-width: 680px) {
+            body {
+                font-size: 15px;
+            }
+
+            .layout {
+                padding: 14px;
+                gap: 14px;
+            }
+
+            .overlay,
+            .sidebar {
+                padding: 16px;
+            }
+
+            .hero,
+            .footer-strip {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="layout">
+        <section class="panel viewport">
+            <div id="sceneMount"></div>
+
+            <div class="overlay">
+                <div class="hero">
+                    <div>
+                        <p class="eyebrow">Inverse Kinematics</p>
+                        <h1>IK-driven 3D arm dashboard</h1>
+                        <p class="subcopy">
+                            The shoulder and elbow are solved from the live end-effector target estimated from
+                            servo telemetry, so the arm keeps fixed-length links and bends through a natural chain.
+                        </p>
+                    </div>
+
+                    <div class="pill">Socket: <strong id="socketStatus">Connecting</strong></div>
+                </div>
+
+                <div class="footer-strip">
+                    <div class="hint">
+                        Fixed links use <strong>L1 = 3</strong> and <strong>L2 = 3</strong>.
+                        The target is reconstructed from <strong>S3</strong> and <strong>S2</strong>, then the
+                        IK solver drives the <strong>shoulder</strong> and <strong>elbow</strong> joints.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="panel sidebar">
+            <section>
+                <h2>Live Servo Telemetry</h2>
+            </section>
+
+            <section class="metric-grid">
+                <div class="card">
+                    <span class="label">S1 Gripper</span>
+                    <div class="value" id="s1Value">0&deg;</div>
+                </div>
+                <div class="card">
+                    <span class="label">S2 Elbow Servo</span>
+                    <div class="value" id="s2Value">0&deg;</div>
+                </div>
+                <div class="card">
+                    <span class="label">S3 Shoulder Servo</span>
+                    <div class="value" id="s3Value">0&deg;</div>
+                </div>
+                <div class="card">
+                    <span class="label">S4 Base Servo</span>
+                    <div class="value accent" id="s4Value">0&deg;</div>
+                </div>
+            </section>
+
+            <section>
+                <h3>IK Debug</h3>
+            </section>
+
+            <section class="debug-grid">
+                <div class="card">
+                    <div class="debug-line"><span>Target XY</span><span id="targetValue">(0.00, 0.00)</span></div>
+                    <div class="debug-line"><span>Shoulder angle</span><span id="theta1Value">0.0&deg;</span></div>
+                    <div class="debug-line"><span>Elbow angle</span><span id="theta2Value">0.0&deg;</span></div>
+                    <div class="debug-line"><span>End effector</span><span id="effectorValue">(0.00, 0.00, 0.00)</span></div>
+                </div>
+            </section>
+        </aside>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <script>
+        const L1 = 3;
+        const L2 = 3;
+
+        const sceneMount = document.getElementById("sceneMount");
+        const socketStatus = document.getElementById("socketStatus");
+        const readouts = {
+            s1: document.getElementById("s1Value"),
+            s2: document.getElementById("s2Value"),
+            s3: document.getElementById("s3Value"),
+            s4: document.getElementById("s4Value"),
+            target: document.getElementById("targetValue"),
+            theta1: document.getElementById("theta1Value"),
+            theta2: document.getElementById("theta2Value"),
+            effector: document.getElementById("effectorValue")
+        };
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x07121a);
+        scene.fog = new THREE.Fog(0x07121a, 12, 24);
+
+        const camera = new THREE.PerspectiveCamera(
+            44,
+            sceneMount.clientWidth / sceneMount.clientHeight,
+            0.1,
+            100
+        );
+        camera.position.set(9, 6.8, 9.6);
+        camera.lookAt(0, 2.6, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(sceneMount.clientWidth, sceneMount.clientHeight);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        sceneMount.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.72);
+        scene.add(ambientLight);
+
+        const hemisphereLight = new THREE.HemisphereLight(0xd2f5ff, 0x10222b, 1.15);
+        scene.add(hemisphereLight);
+
+        const keyLight = new THREE.DirectionalLight(0xfff1d8, 1.3);
+        keyLight.position.set(8, 10, 6);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.set(1024, 1024);
+        scene.add(keyLight);
+
+        const rimLight = new THREE.DirectionalLight(0x57d1d9, 0.6);
+        rimLight.position.set(-6, 5, -6);
+        scene.add(rimLight);
+
+        const grid = new THREE.GridHelper(18, 18, 0x2a7180, 0x183945);
+        scene.add(grid);
+
+        const floor = new THREE.Mesh(
+            new THREE.CircleGeometry(7.5, 48),
+            new THREE.MeshStandardMaterial({
+                color: 0x0d232d,
+                transparent: true,
+                opacity: 0.92,
+                metalness: 0.08,
+                roughness: 0.96
+            })
+        );
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        const pedestalMaterial = new THREE.MeshStandardMaterial({
+            color: 0x264e5f,
+            metalness: 0.36,
+            roughness: 0.52
+        });
+        const upperMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffb454,
+            metalness: 0.4,
+            roughness: 0.32
+        });
+        const forearmMaterial = new THREE.MeshStandardMaterial({
+            color: 0x57d1d9,
+            metalness: 0.34,
+            roughness: 0.3
+        });
+        const jointMaterial = new THREE.MeshStandardMaterial({
+            color: 0xeaf6fb,
+            metalness: 0.66,
+            roughness: 0.18
+        });
+        const targetMaterial = new THREE.MeshStandardMaterial({
+            color: 0xff6f61,
+            emissive: 0x50110d,
+            metalness: 0.18,
+            roughness: 0.44
+        });
+
+        const robot = new THREE.Group();
+        scene.add(robot);
+
+        const pedestal = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.35, 1.55, 0.7, 40),
+            pedestalMaterial
+        );
+        pedestal.position.y = 0.35;
+        pedestal.castShadow = true;
+        pedestal.receiveShadow = true;
+        robot.add(pedestal);
+
+        const base = new THREE.Object3D();
+        base.position.y = 0.7;
+        robot.add(base);
+
+        const baseColumn = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.72, 0.84, 0.95, 36),
+            upperMaterial
+        );
+        baseColumn.position.y = 0.48;
+        baseColumn.castShadow = true;
+        base.add(baseColumn);
+
+        const shoulder = new THREE.Object3D();
+        shoulder.position.y = 0.95;
+        base.add(shoulder);
+
+        const shoulderJoint = new THREE.Mesh(
+            new THREE.SphereGeometry(0.34, 32, 24),
+            jointMaterial
+        );
+        shoulderJoint.castShadow = true;
+        shoulder.add(shoulderJoint);
+
+        const upperArmMesh = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.18, 0.26, L1, 32),
+            upperMaterial
+        );
+        upperArmMesh.rotation.z = Math.PI / 2;
+        upperArmMesh.position.x = L1 / 2;
+        upperArmMesh.castShadow = true;
+        upperArmMesh.receiveShadow = true;
+        shoulder.add(upperArmMesh);
+
+        const elbow = new THREE.Object3D();
+        elbow.position.x = L1;
+        shoulder.add(elbow);
+
+        const elbowJoint = new THREE.Mesh(
+            new THREE.SphereGeometry(0.28, 28, 22),
+            jointMaterial
+        );
+        elbowJoint.castShadow = true;
+        elbow.add(elbowJoint);
+
+        const forearmMesh = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.14, 0.2, L2, 32),
+            forearmMaterial
+        );
+        forearmMesh.rotation.z = Math.PI / 2;
+        forearmMesh.position.x = L2 / 2;
+        forearmMesh.castShadow = true;
+        forearmMesh.receiveShadow = true;
+        elbow.add(forearmMesh);
+
+        const wristJoint = new THREE.Mesh(
+            new THREE.SphereGeometry(0.22, 24, 18),
+            jointMaterial
+        );
+        wristJoint.position.x = L2;
+        wristJoint.castShadow = true;
+        elbow.add(wristJoint);
+
+        const gripper = new THREE.Group();
+        gripper.position.x = L2;
+        elbow.add(gripper);
+
+        const palm = new THREE.Mesh(
+            new THREE.BoxGeometry(0.46, 0.34, 0.42),
+            pedestalMaterial
+        );
+        palm.castShadow = true;
+        gripper.add(palm);
+
+        const leftFinger = new THREE.Mesh(
+            new THREE.BoxGeometry(0.12, 0.5, 0.1),
+            jointMaterial
+        );
+        leftFinger.position.set(0.16, 0.22, 0);
+        leftFinger.castShadow = true;
+        gripper.add(leftFinger);
+
+        const rightFinger = new THREE.Mesh(
+            new THREE.BoxGeometry(0.12, 0.5, 0.1),
+            jointMaterial
+        );
+        rightFinger.position.set(0.16, -0.22, 0);
+        rightFinger.castShadow = true;
+        gripper.add(rightFinger);
+
+        const targetMarker = new THREE.Mesh(
+            new THREE.SphereGeometry(0.13, 18, 16),
+            targetMaterial
+        );
+        targetMarker.castShadow = true;
+        scene.add(targetMarker);
+
+        const effectorWorld = new THREE.Vector3();
+        const currentAngles = { base: 0, theta1: 0, theta2: 0 };
+        const targetAngles = { base: 0, theta1: 0, theta2: 0 };
+        const currentTarget = { x: L1 + L2, y: 0 };
+        const latestState = { s1: 0, s2: 0, s3: 0, s4: 0 };
+
+        function toNumber(value) {
+            return Number.isFinite(Number(value)) ? Number(value) : 0;
+        }
+
+        function formatDegrees(value) {
+            return `${value.toFixed(1)}\u00B0`;
+        }
+
+        function formatVector(vector) {
+            return `(${vector.x.toFixed(2)}, ${vector.y.toFixed(2)}, ${vector.z.toFixed(2)})`;
+        }
+
+        function formatPoint(x, y) {
+            return `(${x.toFixed(2)}, ${y.toFixed(2)})`;
+        }
+
+        function solveIK(x, y) {
+            let d = Math.sqrt(x * x + y * y);
+            d = Math.min(d, L1 + L2 - 0.001);
+
+            let cosTheta2 = (d * d - L1 * L1 - L2 * L2) / (2 * L1 * L2);
+            cosTheta2 = THREE.MathUtils.clamp(cosTheta2, -1, 1);
+
+            let theta2 = Math.acos(cosTheta2);
+
+            let theta1 = Math.atan2(y, x) -
+                         Math.atan2(L2 * Math.sin(theta2),
+                                    L1 + L2 * Math.cos(theta2));
+
+            return { theta1, theta2 };
+        }
+
+        function updateReadouts() {
+            readouts.s1.innerHTML = `${latestState.s1.toFixed(1)}&deg;`;
+            readouts.s2.innerHTML = `${latestState.s2.toFixed(1)}&deg;`;
+            readouts.s3.innerHTML = `${latestState.s3.toFixed(1)}&deg;`;
+            readouts.s4.innerHTML = `${latestState.s4.toFixed(1)}&deg;`;
+            readouts.target.textContent = formatPoint(currentTarget.x, currentTarget.y);
+            readouts.theta1.textContent = formatDegrees(THREE.MathUtils.radToDeg(currentAngles.theta1));
+            readouts.theta2.textContent = formatDegrees(THREE.MathUtils.radToDeg(currentAngles.theta2));
+
+            scene.updateMatrixWorld(true);
+            wristJoint.getWorldPosition(effectorWorld);
+            readouts.effector.textContent = formatVector(effectorWorld);
+        }
+
+        function updateArm(data) {
+            const state = {
+                s1: toNumber(data?.s1),
+                s2: toNumber(data?.s2),
+                s3: toNumber(data?.s3),
+                s4: toNumber(data?.s4)
+            };
+
+            latestState.s1 = state.s1;
+            latestState.s2 = state.s2;
+            latestState.s3 = state.s3;
+            latestState.s4 = state.s4;
+
+            let angle1 = THREE.MathUtils.degToRad(state.s3 - 90);
+            let angle2 = THREE.MathUtils.degToRad(state.s2 - state.s3);
+
+            let x = L1 * Math.cos(angle1) + L2 * Math.cos(angle1 + angle2);
+            let y = L1 * Math.sin(angle1) + L2 * Math.sin(angle1 + angle2);
+
+            let { theta1, theta2 } = solveIK(x, y);
+
+            targetAngles.base = THREE.MathUtils.degToRad(state.s4);
+            targetAngles.theta1 = theta1;
+            targetAngles.theta2 = theta2;
+
+            currentTarget.x = x;
+            currentTarget.y = y;
+
+            targetMarker.position.set(
+                Math.cos(targetAngles.base) * x,
+                shoulder.position.y + y,
+                -Math.sin(targetAngles.base) * x
+            );
+
+            const fingerSpread = THREE.MathUtils.clamp(state.s1 / 240, 0, 0.3);
+            leftFinger.position.y = 0.22 + fingerSpread;
+            rightFinger.position.y = -0.22 - fingerSpread;
+
+            updateReadouts();
+        }
+
+        const socket = io();
+
+        socket.on("connect", () => {
+            socketStatus.textContent = "Connected";
+        });
+
+        socket.on("disconnect", () => {
+            socketStatus.textContent = "Disconnected";
+        });
+
+        socket.on("connect_error", () => {
+            socketStatus.textContent = "Retrying";
+        });
+
+        socket.on("update", data => {
+            updateArm(data);
+        });
+
+        function handleResize() {
+            const width = sceneMount.clientWidth;
+            const height = sceneMount.clientHeight;
+
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        window.addEventListener("resize", handleResize);
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            currentAngles.base = THREE.MathUtils.lerp(currentAngles.base, targetAngles.base, 0.16);
+            currentAngles.theta1 = THREE.MathUtils.lerp(currentAngles.theta1, targetAngles.theta1, 0.18);
+            currentAngles.theta2 = THREE.MathUtils.lerp(currentAngles.theta2, targetAngles.theta2, 0.18);
+
+            base.rotation.y = currentAngles.base;
+            shoulder.rotation.z = currentAngles.theta1;
+            elbow.rotation.z = currentAngles.theta2;
+
+            updateReadouts();
+            renderer.render(scene, camera);
+        }
+
+        updateArm({ s1: 0, s2: 0, s3: 0, s4: 0 });
+        animate();
+    </script>
+</body>
+</html>

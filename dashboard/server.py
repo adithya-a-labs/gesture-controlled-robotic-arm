@@ -27,6 +27,11 @@ def dashboard3d_fk():
     return render_template("index3d_fk.html")
 
 
+@app.route("/3d-ik")
+def dashboard3d_ik():
+    return render_template("index3d_ik.html")
+
+
 @socketio.on("connect")
 def handle_connect():
     emit("update", current_state)
