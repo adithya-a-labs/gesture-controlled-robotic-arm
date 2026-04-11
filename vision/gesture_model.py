@@ -1,7 +1,11 @@
 import numpy as np
 
-ELBOW_RANGE = (20, 150)
-SHOULDER_RANGE = (10, 160)
+ELBOW_RANGE = (60, 140)
+ELBOW_SERVO_RANGE = (20, 150)
+SHOULDER_RANGE = (-90, 90)
+SHOULDER_SERVO_RANGE = (55, 100)
+BASE_OFFSET_RANGE = (-1, 1)
+BASE_SERVO_RANGE = (60, 120)
 DEFAULT_SERVO_ANGLES = (90, 90, 90, 90)
 
 
@@ -183,13 +187,15 @@ class GestureModel:
             for i, value in enumerate(self.prev_output)
         )
 
-    def map_angle_to_servo(self, angle, source_range, fallback):
+    def map_range(self, value, source_range, target_range, fallback):
         fallback = self.safe_number(fallback, 0.0)
-        if not is_finite_number(angle):
+        if not is_finite_number(value):
             return fallback
 
-        clipped = float(np.clip(float(angle), *source_range))
-        mapped = np.interp(clipped, source_range, [0, 180])
+        source_min, source_max = source_range
+        target_min, target_max = target_range
+        clipped = float(np.clip(float(value), source_min, source_max))
+        mapped = np.interp(clipped, [source_min, source_max], [target_min, target_max])
         return self.safe_number(mapped, fallback)
 
     def finalize_servo(self, target, prev, fallback, max_step=5):
@@ -231,23 +237,34 @@ class GestureModel:
                     elif ratio > 0.35:
                         grip = 0
 
-            raw_s2 = self.map_angle_to_servo(elbow_angle, ELBOW_RANGE, previous_output[1])
-            raw_s3 = self.map_angle_to_servo(shoulder_angle, SHOULDER_RANGE, previous_output[2])
+            raw_s2 = elbow_angle
+            raw_s3 = shoulder_angle - 90
 
-            s2_alpha = self.get_adaptive_alpha(raw_s2, self.prev_s2)
-            s3_alpha = self.get_adaptive_alpha(raw_s3, self.prev_s3)
+            if is_finite_number(raw_s2):
+                target_s2 = self.map_range(raw_s2, ELBOW_RANGE, ELBOW_SERVO_RANGE, previous_output[1])
+            else:
+                target_s2 = previous_output[1]
 
-            smooth_s2 = self.smooth(raw_s2, self.prev_s2, s2_alpha)
-            smooth_s3 = self.smooth(raw_s3, self.prev_s3, s3_alpha)
+            if is_finite_number(raw_s3):
+                target_s3 = self.map_range(raw_s3, SHOULDER_RANGE, SHOULDER_SERVO_RANGE, previous_output[2])
+            else:
+                target_s3 = previous_output[2]
 
-            s2 = self.finalize_servo(smooth_s2, self.prev_s2, previous_output[1])
-            s3 = self.finalize_servo(smooth_s3, self.prev_s3, previous_output[2])
+            s2_alpha = self.get_adaptive_alpha(target_s2, self.prev_s2)
+            s3_alpha = self.get_adaptive_alpha(target_s3, self.prev_s3)
+
+            smooth_s2 = self.smooth(target_s2, self.prev_s2, s2_alpha)
+            smooth_s3 = self.smooth(target_s3, self.prev_s3, s3_alpha)
+
+            s2 = int(np.clip(self.finalize_servo(smooth_s2, self.prev_s2, previous_output[1]), *ELBOW_SERVO_RANGE))
+            s3 = int(np.clip(self.finalize_servo(smooth_s3, self.prev_s3, previous_output[2]), *SHOULDER_SERVO_RANGE))
             try:
-                offset = self.compute_torso_offset(l_hip, r_hip)
-                if not is_finite_number(offset):
+                raw_s4 = self.compute_torso_offset(l_hip, r_hip)
+                if not is_finite_number(raw_s4):
                     raise ValueError("Computed torso offset is not finite")
 
-                s4 = int(np.interp(offset, [-1, 1], [0, 180]))
+                s4 = self.map_range(raw_s4, BASE_OFFSET_RANGE, BASE_SERVO_RANGE, previous_output[3])
+                s4 = int(np.clip(s4, *BASE_SERVO_RANGE))
 
                 alpha = 0.3
                 s4 = int(alpha * s4 + (1 - alpha) * self.prev_s4)
@@ -257,6 +274,8 @@ class GestureModel:
 
                 if abs(delta) > max_step:
                     s4 = int(self.prev_s4 + max_step * np.sign(delta))
+
+                s4 = int(np.clip(s4, *BASE_SERVO_RANGE))
             except Exception:
                 s4 = int(self.prev_s4)
 

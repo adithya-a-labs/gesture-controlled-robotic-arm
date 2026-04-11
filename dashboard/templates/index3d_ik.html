@@ -570,7 +570,7 @@
             latestState.s3 = state.s3;
             latestState.s4 = state.s4;
 
-            let angle1 = THREE.MathUtils.degToRad(state.s3 - 90);
+            let angle1 = THREE.MathUtils.degToRad(state.s3 - 55);
             let angle2 = THREE.MathUtils.degToRad(state.s2 - state.s3);
 
             let x = L1 * Math.cos(angle1) + L2 * Math.cos(angle1 + angle2);
@@ -578,7 +578,7 @@
 
             let { theta1, theta2 } = solveIK(x, y);
 
-            targetAngles.base = THREE.MathUtils.degToRad(state.s4);
+            targetAngles.base = THREE.MathUtils.degToRad(state.s4 - 90);
             targetAngles.theta1 = theta1;
             targetAngles.theta2 = theta2;
 

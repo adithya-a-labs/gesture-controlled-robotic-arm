@@ -529,17 +529,12 @@
                 s4: toNumber(data?.s4)
             };
 
-            const s2 = THREE.MathUtils.degToRad(state.s2);
-            const s3 = THREE.MathUtils.degToRad(state.s3);
-            const s4 = THREE.MathUtils.degToRad(state.s4);
+            const theta1 = THREE.MathUtils.degToRad(state.s3 - 55);
+            const theta2 = THREE.MathUtils.degToRad(state.s2 - state.s3);
 
-            base.rotation.y = s4;
-
-            const theta1 = s3 - Math.PI / 2;
-            const theta2 = s2 - s3;
-
-            shoulder.rotation.x = theta1;
-            elbow.rotation.x = theta2;
+            base.rotation.y = THREE.MathUtils.degToRad(state.s4 - 90);
+            shoulder.rotation.z = theta1;
+            elbow.rotation.z = theta2;
 
             elbow.position.y = L1;
             forearmMesh.position.y = L2 / 2;

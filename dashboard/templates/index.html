@@ -197,8 +197,8 @@
 
             const basePivot = { x: canvas.width / 2, y: canvas.height - 55 };
             const baseAngle = toRadians((state.s4 ?? 0) - 90);
-            const shoulderAngle = baseAngle + toRadians((state.s3 ?? 0) - 90);
-            const elbowAngle = shoulderAngle + toRadians((state.s2 ?? 0) - 90);
+            const shoulderAngle = baseAngle + toRadians((state.s3 ?? 0) - 55);
+            const elbowAngle = shoulderAngle + toRadians((state.s2 ?? 0) - (state.s3 ?? 0));
 
             const baseJoint = {
                 x: basePivot.x + armLengths.base * Math.cos(baseAngle),

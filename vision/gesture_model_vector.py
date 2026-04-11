@@ -1,9 +1,11 @@
 import numpy as np
 
 ELBOW_RANGE = (60, 140)
-ELBOW_SERVO_RANGE = (40, 140)
+ELBOW_SERVO_RANGE = (20, 150)
 SHOULDER_DIRECTION_RANGE = (-90, 90)
-SHOULDER_SERVO_RANGE = (20, 160)
+SHOULDER_SERVO_RANGE = (55, 100)
+BASE_OFFSET_RANGE = (-1, 1)
+BASE_SERVO_RANGE = (60, 120)
 DEFAULT_SERVO_ANGLES = (90, 90, 90, 90)
 
 
@@ -248,14 +250,12 @@ class GestureModelVector:
                         grip = 0
 
             if is_finite_number(elbow_angle):
-                s2 = np.interp(elbow_angle, ELBOW_RANGE, ELBOW_SERVO_RANGE)
-                s2 = self.safe_number(np.clip(s2, *ELBOW_SERVO_RANGE), previous_output[1])
+                s2 = self.map_range(elbow_angle, ELBOW_RANGE, ELBOW_SERVO_RANGE, previous_output[1])
             else:
                 s2 = previous_output[1]
 
             if is_finite_number(combined):
-                s3 = np.interp(combined, SHOULDER_DIRECTION_RANGE, SHOULDER_SERVO_RANGE)
-                s3 = self.safe_number(np.clip(s3, *SHOULDER_SERVO_RANGE), previous_output[2])
+                s3 = self.map_range(combined, SHOULDER_DIRECTION_RANGE, SHOULDER_SERVO_RANGE, previous_output[2])
             else:
                 s3 = previous_output[2]
 
@@ -274,8 +274,8 @@ class GestureModelVector:
                 if not is_finite_number(offset):
                     raise ValueError("Computed torso offset is not finite")
 
-                s4 = np.interp(offset, [-1, 1], [0, 180])
-                s4 = int(np.clip(s4, 0, 180))
+                s4 = self.map_range(offset, BASE_OFFSET_RANGE, BASE_SERVO_RANGE, previous_output[3])
+                s4 = int(np.clip(s4, *BASE_SERVO_RANGE))
 
                 alpha = 0.3
                 s4 = int(alpha * s4 + (1 - alpha) * self.prev_s4)
@@ -285,6 +285,8 @@ class GestureModelVector:
 
                 if abs(delta) > max_step:
                     s4 = int(self.prev_s4 + max_step * np.sign(delta))
+
+                s4 = int(np.clip(s4, *BASE_SERVO_RANGE))
             except Exception:
                 s4 = int(self.prev_s4)
 
@@ -292,8 +294,8 @@ class GestureModelVector:
             output = (
                 int(np.clip(self.safe_number(s1, previous_output[0]), 0, 180)),
                 int(np.clip(self.safe_number(s2, previous_output[1]), *ELBOW_SERVO_RANGE)),
-                int(np.clip(self.safe_number(s3, previous_output[2]), 20, 160)),
-                int(np.clip(self.safe_number(s4, previous_output[3]), 0, 180)),
+                int(np.clip(self.safe_number(s3, previous_output[2]), *SHOULDER_SERVO_RANGE)),
+                int(np.clip(self.safe_number(s4, previous_output[3]), *BASE_SERVO_RANGE)),
             )
 
             self.prev_s2 = output[1]

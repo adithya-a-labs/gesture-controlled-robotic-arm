@@ -430,9 +430,9 @@
                 s4: Number(data?.s4 ?? 0)
             };
 
-            base.rotation.y = degToRad(state.s4);
-            upperArm.rotation.z = degToRad(state.s3);
-            forearm.rotation.z = degToRad(state.s2);
+            base.rotation.y = degToRad(state.s4 - 90);
+            upperArm.rotation.z = degToRad(state.s3 - 55);
+            forearm.rotation.z = degToRad(state.s2 - state.s3);
 
             const gripOffset = THREE.MathUtils.clamp(state.s1 / 220, 0, 0.35);
             leftFinger.position.x = -0.18 - gripOffset;

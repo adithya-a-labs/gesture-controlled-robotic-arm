@@ -342,27 +342,27 @@
             {
                 name: "APPROACH",
                 duration: 2300,
-                target: { s1: 0, s2: 110, s3: 70, s4: 45 }
+                target: { s1: 0, s2: 110, s3: 70, s4: 60 }
             },
             {
                 name: "LOWER",
                 duration: 2200,
-                target: { s1: 0, s2: 130, s3: 50, s4: 45 }
+                target: { s1: 0, s2: 130, s3: 55, s4: 60 }
             },
             {
                 name: "GRAB",
                 duration: 1800,
-                target: { s1: 180, s2: 130, s3: 50, s4: 45 }
+                target: { s1: 180, s2: 130, s3: 55, s4: 60 }
             },
             {
                 name: "LIFT",
                 duration: 2200,
-                target: { s1: 180, s2: 90, s3: 90, s4: 45 }
+                target: { s1: 180, s2: 90, s3: 90, s4: 60 }
             },
             {
                 name: "HOLD",
                 duration: 2200,
-                target: { s1: 180, s2: 90, s3: 90, s4: 45 }
+                target: { s1: 180, s2: 90, s3: 90, s4: 60 }
             }
         ];
 
@@ -564,8 +564,8 @@
         }
 
         function applyRotations() {
-            base.rotation.y = degToRad(state.s4);
-            shoulder.rotation.z = degToRad(state.s3 - 90);
+            base.rotation.y = degToRad(state.s4 - 90);
+            shoulder.rotation.z = degToRad(state.s3 - 55);
             elbow.rotation.z = degToRad(state.s2 - state.s3);
 
             const closeRatio = THREE.MathUtils.clamp(state.s1 / 180, 0, 1);
