@@ -268,7 +268,8 @@ class GestureModelVector:
             self.gripper_closed = bool(grip)
 
             if is_finite_number(elbow_angle):
-                s2 = self.map_range(elbow_angle, ELBOW_RANGE, ELBOW_SERVO_RANGE, previous_output[1])
+                s2 = np.interp(elbow_angle, [60, 180], [20, 150])
+                s2 = np.clip(s2, 20, 150)
             else:
                 s2 = previous_output[1]
 

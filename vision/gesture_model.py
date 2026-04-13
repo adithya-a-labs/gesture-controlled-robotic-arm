@@ -266,7 +266,8 @@ S1 (Gripper)         : {s1:.1f}
             raw_s3 = shoulder_angle - 90
 
             if is_finite_number(raw_s2):
-                target_s2 = self.map_range(raw_s2, ELBOW_RANGE, ELBOW_SERVO_RANGE, previous_output[1])
+                target_s2 = np.interp(raw_s2, [60, 180], [20, 150])
+                target_s2 = np.clip(target_s2, 20, 150)
             else:
                 target_s2 = previous_output[1]
 
