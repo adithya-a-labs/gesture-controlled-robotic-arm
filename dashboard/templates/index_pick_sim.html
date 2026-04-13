@@ -340,8 +340,8 @@
         let state = {
             s1: 0,
             s2: 90,
-            s3: 90,
-            s4: 90
+            s3: DEFAULT_CALIBRATION.s3_center,
+            s4: DEFAULT_CALIBRATION.s4_center
         };
 
         const phases = [
@@ -353,22 +353,22 @@
             {
                 name: "LOWER",
                 duration: 2200,
-                target: { s1: 0, s2: 130, s3: 55, s4: 60 }
+                target: { s1: 0, s2: 130, s3: 90, s4: 60 }
             },
             {
                 name: "GRAB",
                 duration: 1800,
-                target: { s1: 180, s2: 130, s3: 55, s4: 60 }
+                target: { s1: 180, s2: 130, s3: 90, s4: 60 }
             },
             {
                 name: "LIFT",
                 duration: 2200,
-                target: { s1: 180, s2: 90, s3: 90, s4: 60 }
+                target: { s1: 180, s2: 90, s3: 55, s4: 60 }
             },
             {
                 name: "HOLD",
                 duration: 2200,
-                target: { s1: 180, s2: 90, s3: 90, s4: 60 }
+                target: { s1: 180, s2: 90, s3: 55, s4: 60 }
             }
         ];
 
@@ -593,10 +593,6 @@
             };
         }
 
-        function getShoulderOffset() {
-            return calibrationNumber(getCalibration().s3_offset, DEFAULT_CALIBRATION.s3_offset);
-        }
-
         function getBaseCenter() {
             return calibrationNumber(getCalibration().s4_center, DEFAULT_CALIBRATION.s4_center);
         }
@@ -610,6 +606,33 @@
                 servo.max,
                 human.min,
                 human.max
+            );
+        }
+
+        function getShoulderCalibration() {
+            const calibration = getCalibration();
+            const center = calibrationNumber(calibration.s3_center, DEFAULT_CALIBRATION.s3_center);
+            const max = calibrationNumber(calibration.s3_max, DEFAULT_CALIBRATION.s3_max);
+            return {
+                center,
+                max: Math.max(max, center + 1)
+            };
+        }
+
+        function mapServoToHumanShoulder(servoValue) {
+            const shoulder = getShoulderCalibration();
+            const clampedValue = THREE.MathUtils.clamp(
+                calibrationNumber(servoValue, shoulder.center),
+                shoulder.center,
+                shoulder.max
+            );
+
+            return THREE.MathUtils.mapLinear(
+                clampedValue,
+                shoulder.center,
+                shoulder.max,
+                90,
+                0
             );
         }
 
@@ -633,8 +656,9 @@
 
         function applyRotations() {
             const humanElbow = mapServoToHumanElbow(state.s2);
+            const humanShoulder = mapServoToHumanShoulder(state.s3);
             base.rotation.y = degToRad(state.s4 - getBaseCenter());
-            shoulder.rotation.z = degToRad(state.s3 - getShoulderOffset());
+            shoulder.rotation.z = degToRad(humanShoulder);
             elbow.rotation.z = THREE.MathUtils.degToRad(humanElbow - 180);
 
             const closeRatio = THREE.MathUtils.clamp(state.s1 / 180, 0, 1);

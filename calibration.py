@@ -7,7 +7,7 @@ DEFAULT_CALIBRATION = {
     "s2_hmax": 180,
     "s2_smin": 20,
     "s2_smax": 150,
-    "s3_offset": 55,
+    "s3_center": 55,
     "s3_min": 55,
     "s3_max": 100,
     "s4_center": 90,
@@ -21,7 +21,7 @@ CALIBRATION_LIMITS = {
     "s2_hmax": (0, 180),
     "s2_smin": (0, 180),
     "s2_smax": (0, 180),
-    "s3_offset": (0, 180),
+    "s3_center": (0, 180),
     "s3_min": (0, 180),
     "s3_max": (0, 180),
     "s4_center": (0, 180),
@@ -32,6 +32,9 @@ CALIBRATION_LIMITS = {
 
 FLOAT_KEYS = {"pinch_threshold", "release_threshold"}
 MIN_RANGE_GAP = 1
+LEGACY_CALIBRATION_ALIASES = {
+    "s3_offset": "s3_center",
+}
 
 _lock = RLock()
 
@@ -79,7 +82,12 @@ def _normalize_int_range(lower, upper, absolute_min=0, absolute_max=180, minimum
 def sanitize_calibration(values=None):
     merged = DEFAULT_CALIBRATION.copy()
     if values:
-        merged.update(values)
+        aliased_values = dict(values)
+        for legacy_key, current_key in LEGACY_CALIBRATION_ALIASES.items():
+            if current_key not in aliased_values and legacy_key in aliased_values:
+                aliased_values[current_key] = aliased_values[legacy_key]
+
+        merged.update(aliased_values)
 
     normalized = {
         key: _coerce_value(key, merged.get(key))
@@ -94,19 +102,11 @@ def sanitize_calibration(values=None):
         normalized["s2_smin"],
         normalized["s2_smax"],
     )
-    normalized["s3_min"], normalized["s3_max"] = _normalize_int_range(
-        normalized["s3_min"],
+    normalized["s3_center"], normalized["s3_max"] = _normalize_int_range(
+        normalized["s3_center"],
         normalized["s3_max"],
     )
-    normalized["s3_offset"] = int(
-        round(
-            _clamp(
-                normalized["s3_offset"],
-                normalized["s3_min"],
-                normalized["s3_max"],
-            )
-        )
-    )
+    normalized["s3_min"] = normalized["s3_center"]
 
     pinch_threshold = float(normalized["pinch_threshold"])
     release_threshold = float(normalized["release_threshold"])
@@ -181,6 +181,19 @@ def get_shoulder_servo_range(config=None):
     return _normalize_int_range(
         config.get("s3_min", DEFAULT_CALIBRATION["s3_min"]),
         config.get("s3_max", DEFAULT_CALIBRATION["s3_max"]),
+    )
+
+
+def get_shoulder_center(config=None):
+    config = config or get_calibration()
+    return int(
+        round(
+            _clamp(
+                config.get("s3_center", DEFAULT_CALIBRATION["s3_center"]),
+                config.get("s3_min", DEFAULT_CALIBRATION["s3_min"]),
+                config.get("s3_max", DEFAULT_CALIBRATION["s3_max"]),
+            )
+        )
     )
 
 

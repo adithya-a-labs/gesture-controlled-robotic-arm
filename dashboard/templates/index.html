@@ -186,7 +186,12 @@
         };
         const DEFAULT_CALIBRATION = {{ default_calibration|tojson }};
         const INITIAL_CALIBRATION = {{ initial_calibration|tojson }};
-        const latestState = { s1: 0, s2: 0, s3: 0, s4: 0 };
+        const latestState = {
+            s1: 0,
+            s2: DEFAULT_CALIBRATION.s2_smin,
+            s3: DEFAULT_CALIBRATION.s3_center,
+            s4: DEFAULT_CALIBRATION.s4_center
+        };
 
         window.calibration = { ...DEFAULT_CALIBRATION, ...INITIAL_CALIBRATION };
 
@@ -255,10 +260,6 @@
             };
         }
 
-        function getShoulderOffset() {
-            return calibrationNumber(getCalibration().s3_offset, DEFAULT_CALIBRATION.s3_offset);
-        }
-
         function getBaseCenter() {
             return calibrationNumber(getCalibration().s4_center, DEFAULT_CALIBRATION.s4_center);
         }
@@ -267,6 +268,33 @@
             const { human, servo } = getElbowRanges();
             const clampedValue = clamp(calibrationNumber(servoValue, servo.min), servo.min, servo.max);
             return mapLinear(clampedValue, servo.min, servo.max, human.min, human.max);
+        }
+
+        function getShoulderCalibration() {
+            const calibration = getCalibration();
+            const center = calibrationNumber(calibration.s3_center, DEFAULT_CALIBRATION.s3_center);
+            const max = calibrationNumber(calibration.s3_max, DEFAULT_CALIBRATION.s3_max);
+            return {
+                center,
+                max: Math.max(max, center + 1)
+            };
+        }
+
+        function mapServoToHumanShoulder(servoValue) {
+            const shoulder = getShoulderCalibration();
+            const clampedValue = clamp(
+                calibrationNumber(servoValue, shoulder.center),
+                shoulder.center,
+                shoulder.max
+            );
+
+            return mapLinear(
+                clampedValue,
+                shoulder.center,
+                shoulder.max,
+                90,
+                0
+            );
         }
 
         function drawSegment(fromX, fromY, toX, toY, width, color) {
@@ -341,8 +369,9 @@
 
             const basePivot = { x: canvas.width / 2, y: canvas.height - 55 };
             const humanElbow = mapServoToHumanElbow(latestState.s2);
+            const humanShoulder = mapServoToHumanShoulder(latestState.s3);
             const baseAngle = toRadians(latestState.s4 - getBaseCenter());
-            const shoulderAngle = baseAngle + toRadians(latestState.s3 - getShoulderOffset());
+            const shoulderAngle = baseAngle + toRadians(humanShoulder);
             const elbowAngle = shoulderAngle + toRadians(humanElbow - 180);
 
             const baseJoint = {

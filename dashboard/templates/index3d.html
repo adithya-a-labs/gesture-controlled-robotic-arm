@@ -312,7 +312,12 @@
         };
         const DEFAULT_CALIBRATION = {{ default_calibration|tojson }};
         const INITIAL_CALIBRATION = {{ initial_calibration|tojson }};
-        const latestState = { s1: 0, s2: 20, s3: 0, s4: 0 };
+        const latestState = {
+            s1: 0,
+            s2: DEFAULT_CALIBRATION.s2_smin,
+            s3: DEFAULT_CALIBRATION.s3_center,
+            s4: DEFAULT_CALIBRATION.s4_center
+        };
 
         window.calibration = { ...DEFAULT_CALIBRATION, ...INITIAL_CALIBRATION };
 
@@ -358,10 +363,6 @@
             };
         }
 
-        function getShoulderOffset() {
-            return calibrationNumber(getCalibration().s3_offset, DEFAULT_CALIBRATION.s3_offset);
-        }
-
         function getBaseCenter() {
             return calibrationNumber(getCalibration().s4_center, DEFAULT_CALIBRATION.s4_center);
         }
@@ -375,6 +376,33 @@
                 servo.max,
                 human.min,
                 human.max
+            );
+        }
+
+        function getShoulderCalibration() {
+            const calibration = getCalibration();
+            const center = calibrationNumber(calibration.s3_center, DEFAULT_CALIBRATION.s3_center);
+            const max = calibrationNumber(calibration.s3_max, DEFAULT_CALIBRATION.s3_max);
+            return {
+                center,
+                max: Math.max(max, center + 1)
+            };
+        }
+
+        function mapServoToHumanShoulder(servoValue) {
+            const shoulder = getShoulderCalibration();
+            const clampedValue = THREE.MathUtils.clamp(
+                calibrationNumber(servoValue, shoulder.center),
+                shoulder.center,
+                shoulder.max
+            );
+
+            return THREE.MathUtils.mapLinear(
+                clampedValue,
+                shoulder.center,
+                shoulder.max,
+                90,
+                0
             );
         }
 
@@ -551,9 +579,10 @@
             latestState.s3 = state.s3;
             latestState.s4 = state.s4;
             const humanElbow = mapServoToHumanElbow(state.s2);
+            const humanShoulder = mapServoToHumanShoulder(state.s3);
 
             base.rotation.y = degToRad(state.s4 - getBaseCenter());
-            upperArm.rotation.z = degToRad(state.s3 - getShoulderOffset());
+            upperArm.rotation.z = degToRad(humanShoulder - 90);
             forearm.rotation.z = THREE.MathUtils.degToRad(humanElbow - 180);
 
             const gripOffset = THREE.MathUtils.clamp(state.s1 / 220, 0, 0.35);

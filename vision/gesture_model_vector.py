@@ -5,16 +5,20 @@ from calibration import (
     get_calibration,
     get_elbow_human_range,
     get_elbow_servo_range,
+    get_shoulder_center,
     get_shoulder_servo_range,
 )
 
 ELBOW_RANGE = (60, 140)
 ELBOW_SERVO_RANGE = (20, 150)
-SHOULDER_DIRECTION_RANGE = (-90, 90)
-SHOULDER_SERVO_RANGE = (55, 100)
 BASE_OFFSET_RANGE = (-1, 1)
 BASE_SERVO_RANGE = (60, 120)
-DEFAULT_SERVO_ANGLES = (90, 90, 90, 90)
+DEFAULT_SERVO_ANGLES = (
+    0,
+    90,
+    DEFAULT_CALIBRATION["s3_center"],
+    DEFAULT_CALIBRATION["s4_center"],
+)
 
 
 def is_finite_number(value):
@@ -256,6 +260,7 @@ class GestureModelVector:
             config = self.get_calibration_snapshot()
             elbow_human_range = get_elbow_human_range(config)
             elbow_servo_range = get_elbow_servo_range(config)
+            shoulder_center = get_shoulder_center(config)
             shoulder_servo_range = get_shoulder_servo_range(config)
             base_servo_range = get_base_servo_range(config)
             pinch_threshold, release_threshold = self.resolve_pinch_thresholds(config)
@@ -281,9 +286,9 @@ class GestureModelVector:
 
                 shoulder_angle = np.degrees(np.arctan2(-vec_y, vec_x))
                 vertical = elbow[1] - shoulder[1]
-                combined = 0.7 * shoulder_angle + 0.3 * (vertical * 180)
+                shoulder_angle = 0.7 * shoulder_angle + 0.3 * (vertical * 180)
             else:
-                combined = np.nan
+                shoulder_angle = np.nan
 
             grip = self.prev_grip
             if hand:
@@ -305,8 +310,13 @@ class GestureModelVector:
             else:
                 s2 = previous_output[1]
 
-            if is_finite_number(combined):
-                s3 = self.map_range(combined, SHOULDER_DIRECTION_RANGE, shoulder_servo_range, previous_output[2])
+            if is_finite_number(shoulder_angle):
+                s3 = np.interp(
+                    shoulder_angle,
+                    [30, 150],
+                    [shoulder_center, shoulder_servo_range[1]],
+                )
+                s3 = np.clip(s3, shoulder_center, shoulder_servo_range[1])
             else:
                 s3 = previous_output[2]
 
@@ -315,10 +325,18 @@ class GestureModelVector:
             s3 = alpha * s3 + (1 - alpha) * self.prev_s3
 
             s2 = int(round(np.clip(self.safe_number(s2, previous_output[1]), *elbow_servo_range)))
-            s3 = int(round(np.clip(self.safe_number(s3, previous_output[2]), *shoulder_servo_range)))
+            s3 = int(
+                round(
+                    np.clip(
+                        self.safe_number(s3, previous_output[2]),
+                        shoulder_center,
+                        shoulder_servo_range[1],
+                    )
+                )
+            )
 
             s2 = int(np.clip(s2, *elbow_servo_range))
-            s3 = int(np.clip(s3, *shoulder_servo_range))
+            s3 = int(np.clip(s3, shoulder_center, shoulder_servo_range[1]))
 
             try:
                 offset = self.compute_torso_offset(l_hip, r_hip)

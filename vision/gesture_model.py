@@ -5,16 +5,20 @@ from calibration import (
     get_calibration,
     get_elbow_human_range,
     get_elbow_servo_range,
+    get_shoulder_center,
     get_shoulder_servo_range,
 )
 
 ELBOW_RANGE = (60, 140)
 ELBOW_SERVO_RANGE = (20, 150)
-SHOULDER_RANGE = (-90, 90)
-SHOULDER_SERVO_RANGE = (55, 100)
 BASE_OFFSET_RANGE = (-1, 1)
 BASE_SERVO_RANGE = (60, 120)
-DEFAULT_SERVO_ANGLES = (90, 90, 90, 90)
+DEFAULT_SERVO_ANGLES = (
+    0,
+    90,
+    DEFAULT_CALIBRATION["s3_center"],
+    DEFAULT_CALIBRATION["s4_center"],
+)
 
 
 def is_finite_number(value):
@@ -263,6 +267,7 @@ S1 (Gripper)         : {s1:.1f}
             config = self.get_calibration_snapshot()
             elbow_human_range = get_elbow_human_range(config)
             elbow_servo_range = get_elbow_servo_range(config)
+            shoulder_center = get_shoulder_center(config)
             shoulder_servo_range = get_shoulder_servo_range(config)
             base_servo_range = get_base_servo_range(config)
             pinch_threshold, release_threshold = self.resolve_pinch_thresholds(config)
@@ -295,7 +300,6 @@ S1 (Gripper)         : {s1:.1f}
             self.gripper_closed = bool(grip)
 
             raw_s2 = elbow_angle
-            raw_s3 = shoulder_angle - 90
 
             if is_finite_number(raw_s2):
                 target_s2 = self.map_range(raw_s2, elbow_human_range, elbow_servo_range, previous_output[1])
@@ -303,8 +307,13 @@ S1 (Gripper)         : {s1:.1f}
             else:
                 target_s2 = previous_output[1]
 
-            if is_finite_number(raw_s3):
-                target_s3 = self.map_range(raw_s3, SHOULDER_RANGE, shoulder_servo_range, previous_output[2])
+            if is_finite_number(shoulder_angle):
+                target_s3 = np.interp(
+                    shoulder_angle,
+                    [30, 150],
+                    [shoulder_center, shoulder_servo_range[1]],
+                )
+                target_s3 = np.clip(target_s3, shoulder_center, shoulder_servo_range[1])
             else:
                 target_s3 = previous_output[2]
 
@@ -315,7 +324,13 @@ S1 (Gripper)         : {s1:.1f}
             smooth_s3 = self.smooth(target_s3, self.prev_s3, s3_alpha)
 
             s2 = int(np.clip(self.finalize_servo(smooth_s2, self.prev_s2, previous_output[1]), *elbow_servo_range))
-            s3 = int(np.clip(self.finalize_servo(smooth_s3, self.prev_s3, previous_output[2]), *shoulder_servo_range))
+            s3 = int(
+                np.clip(
+                    self.finalize_servo(smooth_s3, self.prev_s3, previous_output[2]),
+                    shoulder_center,
+                    shoulder_servo_range[1],
+                )
+            )
             try:
                 raw_s4 = self.compute_torso_offset(l_hip, r_hip)
                 if not is_finite_number(raw_s4):

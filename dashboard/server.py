@@ -10,9 +10,9 @@ model = None
 
 current_state = {
     "s1": 0,
-    "s2": 0,
-    "s3": 0,
-    "s4": 0,
+    "s2": calibration_store.DEFAULT_CALIBRATION["s2_smin"],
+    "s3": calibration_store.DEFAULT_CALIBRATION["s3_center"],
+    "s4": calibration_store.DEFAULT_CALIBRATION["s4_center"],
     "manual_override": False,
     "manual_state": False,
     "gripper_mode": "AUTO",
