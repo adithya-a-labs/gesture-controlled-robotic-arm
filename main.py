@@ -1,4 +1,11 @@
 """
+DEV MODE:
+
+- USE_SERIAL = False -> runs without ESP32 (testing, debugging)
+- USE_SERIAL = True  -> sends data to ESP32
+
+This allows working on vision + dashboard without hardware connected.
+
 SERVO MAPPING (IMPORTANT)
 
 S4 -> Base rotation (torso left/right)
@@ -28,6 +35,8 @@ from dashboard.server import update_state, socketio, app
 from vision.camera import Camera
 from vision.handtracking import HolisticTracker
 from vision.gesture_model import GestureModel
+
+USE_SERIAL = False  # Set True when ESP32 is connected
 
 latest_frame = None
 pose_result = None
@@ -66,13 +75,18 @@ def processing_loop(tracker, model):
             s1, s2, s3, s4 = servo_angles
             update_state(s1, s2, s3, s4)
 
-            try:
-                # ESP32 expects values in base, shoulder, elbow, gripper order.
-                data = f"{s4},{s3},{s2},{s1}\n"
-                ser.write(data.encode())
-                print(f"Sent: {s4},{s3},{s2},{s1}")
-            except Exception as e:
-                print("Serial error:", e)
+            # ESP32 expects values in base, shoulder, elbow, gripper order.
+            data = f"{s4},{s3},{s2},{s1}\n"
+
+            if ser:
+                try:
+                    ser.write(data.encode())
+                    print(f"Sent: {s4},{s3},{s2},{s1}")
+                except Exception as e:
+                    print("Serial write error:", e)
+
+            if not ser:
+                print(f"[DEV MODE] {data.strip()}")
 
 
 def run_server():
@@ -83,8 +97,16 @@ cam = Camera()
 tracker = HolisticTracker()
 model = GestureModel()
 
-ser = serial.Serial('COM5', 115200, timeout=1)
-time.sleep(2)  # allow ESP32 to initialize
+ser = None
+
+if USE_SERIAL:
+    try:
+        ser = serial.Serial('COM5', 115200, timeout=1)
+        print("Serial connected on COM5")
+        time.sleep(2)  # allow ESP32 to initialize
+    except Exception as e:
+        print("Serial not available, running without hardware:", e)
+        ser = None
 
 threading.Thread(target=run_server, daemon=True).start()
 
@@ -130,4 +152,5 @@ finally:
     cv2.destroyAllWindows()
     cam_thread.join()
     proc_thread.join()
-    ser.close()
+    if ser:
+        ser.close()
