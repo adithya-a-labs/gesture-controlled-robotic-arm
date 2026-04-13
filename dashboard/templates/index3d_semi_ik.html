@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Semi-IK Dashboard</title>
+    <style>
+        :root {
+            --bg-1: #0b1720;
+            --bg-2: #132735;
+            --panel: rgba(10, 17, 24, 0.84);
+            --line: rgba(255, 255, 255, 0.08);
+            --text: #eef5f8;
+            --muted: #a5b7c2;
+            --accent-1: #f4a261;
+            --accent-2: #2a9d8f;
+            --accent-3: #e76f51;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(244, 162, 97, 0.16), transparent 28%),
+                radial-gradient(circle at bottom right, rgba(42, 157, 143, 0.18), transparent 32%),
+                linear-gradient(180deg, var(--bg-2) 0%, var(--bg-1) 100%);
+        }
+
+        .layout {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: minmax(0, 1.8fr) minmax(320px, 0.9fr);
+            gap: 18px;
+            padding: 18px;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28);
+            backdrop-filter: blur(10px);
+        }
+
+        .viewport {
+            position: relative;
+            overflow: hidden;
+            min-height: 72vh;
+        }
+
+        #sceneMount {
+            width: 100%;
+            height: 100%;
+            min-height: 72vh;
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+        }
+
+        .headline,
+        .footnote {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .eyebrow {
+            margin: 0 0 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            font-size: 0.78rem;
+            color: var(--accent-1);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(1.8rem, 2vw + 1rem, 2.8rem);
+            line-height: 1.05;
+        }
+
+        .subcopy,
+        .hint {
+            margin: 10px 0 0;
+            max-width: 38rem;
+            line-height: 1.55;
+            color: var(--muted);
+        }
+
+        .badge,
+        .hint {
+            padding: 12px 16px;
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            background: rgba(8, 13, 18, 0.74);
+        }
+
+        .badge {
+            white-space: nowrap;
+        }
+
+        .sidebar {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .section-title {
+            margin: 0;
+            font-size: 0.86rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+        }
+
+        .card {
+            padding: 16px;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            background: rgba(6, 10, 15, 0.82);
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .slider-row label {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+
+        .slider-row input {
+            width: 100%;
+        }
+
+        .metric-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .metric-label {
+            display: block;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--muted);
+        }
+
+        .metric-value {
+            margin-top: 8px;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .metric-value.accent {
+            color: var(--accent-1);
+        }
+
+        .debug-line {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 0.96rem;
+            line-height: 1.5;
+        }
+
+        .debug-line + .debug-line {
+            margin-top: 8px;
+        }
+
+        .debug-line span:first-child {
+            color: var(--muted);
+        }
+
+        .debug-line span:last-child {
+            font-variant-numeric: tabular-nums;
+        }
+
+        @media (max-width: 980px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .viewport,
+            #sceneMount {
+                min-height: 58vh;
+            }
+        }
+
+        @media (max-width: 680px) {
+            .layout {
+                padding: 12px;
+                gap: 12px;
+            }
+
+            .headline,
+            .footnote {
+                flex-direction: column;
+            }
+
+            .overlay,
+            .sidebar {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="layout">
+        <section class="panel viewport">
+            <div id="sceneMount"></div>
+
+            <div class="overlay">
+                <div class="headline">
+                    <div>
+                        <p class="eyebrow">Independent Experiment</p>
+                        <h1>Semi-inverse kinematics visualizer</h1>
+                        <p class="subcopy">
+                            This dashboard is fully isolated from the existing control pipeline. Move the target sliders
+                            to solve shoulder and elbow angles for a simple 2-link arm in real time.
+                        </p>
+                    </div>
+
+                    <div class="badge">Route: <strong>/3d-semi-ik</strong></div>
+                </div>
+
+                <div class="footnote">
+                    <div class="hint">
+                        Link lengths are fixed at <strong>L1 = 3</strong> and <strong>L2 = 3</strong>. The target is
+                        clamped to the reachable workspace so the arm keeps a valid pose at all times.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="panel sidebar">
+            <section>
+                <h2 class="section-title">Target Controls</h2>
+            </section>
+
+            <section class="card slider-group">
+                <div class="slider-row">
+                    <label for="x">
+                        <span>Target X</span>
+                        <span id="xValue">2.0</span>
+                    </label>
+                    <input type="range" id="x" min="-5" max="5" step="0.1" value="2.0">
+                </div>
+
+                <div class="slider-row">
+                    <label for="y">
+                        <span>Target Y</span>
+                        <span id="yValue">3.0</span>
+                    </label>
+                    <input type="range" id="y" min="0" max="5" step="0.1" value="3.0">
+                </div>
+            </section>
+
+            <section>
+                <h2 class="section-title">Solved Angles</h2>
+            </section>
+
+            <section class="metric-grid">
+                <div class="card">
+                    <span class="metric-label">Shoulder</span>
+                    <div class="metric-value accent" id="shoulderValue">0.0°</div>
+                </div>
+
+                <div class="card">
+                    <span class="metric-label">Elbow</span>
+                    <div class="metric-value" id="elbowValue">0.0°</div>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="section-title">Debug</h2>
+            </section>
+
+            <section class="card">
+                <div class="debug-line"><span>Target</span><span id="targetValue">(2.00, 3.00)</span></div>
+                <div class="debug-line"><span>Reach</span><span id="reachValue">3.61</span></div>
+                <div class="debug-line"><span>Effector</span><span id="effectorValue">(0.00, 0.00)</span></div>
+            </section>
+        </aside>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+    <script>
+        const L1 = 3;
+        const L2 = 3;
+
+        const xSlider = document.getElementById("x");
+        const ySlider = document.getElementById("y");
+        const xValue = document.getElementById("xValue");
+        const yValue = document.getElementById("yValue");
+        const shoulderValue = document.getElementById("shoulderValue");
+        const elbowValue = document.getElementById("elbowValue");
+        const targetValue = document.getElementById("targetValue");
+        const reachValue = document.getElementById("reachValue");
+        const effectorValue = document.getElementById("effectorValue");
+        const sceneMount = document.getElementById("sceneMount");
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x08131b);
+        scene.fog = new THREE.Fog(0x08131b, 10, 22);
+
+        const camera = new THREE.PerspectiveCamera(
+            48,
+            sceneMount.clientWidth / sceneMount.clientHeight,
+            0.1,
+            100
+        );
+        camera.position.set(4.8, 5.5, 8.5);
+        camera.lookAt(2.3, 1.8, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(sceneMount.clientWidth, sceneMount.clientHeight);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        sceneMount.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+
+        const hemi = new THREE.HemisphereLight(0xcfefff, 0x11212c, 1.05);
+        scene.add(hemi);
+
+        const keyLight = new THREE.DirectionalLight(0xfff2d8, 1.25);
+        keyLight.position.set(5, 8, 6);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.set(1024, 1024);
+        scene.add(keyLight);
+
+        const rimLight = new THREE.DirectionalLight(0x2a9d8f, 0.5);
+        rimLight.position.set(-5, 4, -4);
+        scene.add(rimLight);
+
+        const grid = new THREE.GridHelper(14, 14, 0x2a9d8f, 0x1a3440);
+        scene.add(grid);
+
+        const floor = new THREE.Mesh(
+            new THREE.CircleGeometry(6.5, 48),
+            new THREE.MeshStandardMaterial({
+                color: 0x10222c,
+                metalness: 0.08,
+                roughness: 0.95
+            })
+        );
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        const baseMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2e4957,
+            metalness: 0.28,
+            roughness: 0.56
+        });
+        const upperMaterial = new THREE.MeshStandardMaterial({
+            color: 0xf4a261,
+            metalness: 0.2,
+            roughness: 0.42
+        });
+        const forearmMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2a9d8f,
+            metalness: 0.16,
+            roughness: 0.38
+        });
+        const jointMaterial = new THREE.MeshStandardMaterial({
+            color: 0xeaf3f7,
+            metalness: 0.5,
+            roughness: 0.2
+        });
+        const targetMaterial = new THREE.MeshStandardMaterial({
+            color: 0xe76f51,
+            emissive: 0x54190d,
+            metalness: 0.12,
+            roughness: 0.42
+        });
+
+        const armRoot = new THREE.Group();
+        scene.add(armRoot);
+
+        const base = new THREE.Group();
+        base.position.set(0, 0.25, 0);
+        armRoot.add(base);
+
+        const baseMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(1.2, 0.5, 1.2),
+            baseMaterial
+        );
+        baseMesh.castShadow = true;
+        baseMesh.receiveShadow = true;
+        base.add(baseMesh);
+
+        const shoulderJoint = new THREE.Mesh(
+            new THREE.SphereGeometry(0.18, 24, 20),
+            jointMaterial
+        );
+        shoulderJoint.castShadow = true;
+        base.add(shoulderJoint);
+
+        const upperArmGeometry = new THREE.BoxGeometry(L1, 0.28, 0.28);
+        upperArmGeometry.translate(L1 / 2, 0, 0);
+
+        const upperArm = new THREE.Mesh(upperArmGeometry, upperMaterial);
+        upperArm.castShadow = true;
+        upperArm.receiveShadow = true;
+        base.add(upperArm);
+
+        const elbowJoint = new THREE.Mesh(
+            new THREE.SphereGeometry(0.16, 22, 18),
+            jointMaterial
+        );
+        elbowJoint.position.set(L1, 0, 0);
+        elbowJoint.castShadow = true;
+        upperArm.add(elbowJoint);
+
+        const forearmGeometry = new THREE.BoxGeometry(L2, 0.22, 0.22);
+        forearmGeometry.translate(L2 / 2, 0, 0);
+
+        const forearm = new THREE.Mesh(forearmGeometry, forearmMaterial);
+        forearm.position.set(L1, 0, 0);
+        forearm.castShadow = true;
+        forearm.receiveShadow = true;
+        upperArm.add(forearm);
+
+        const wristJoint = new THREE.Mesh(
+            new THREE.SphereGeometry(0.14, 20, 18),
+            jointMaterial
+        );
+        wristJoint.position.set(L2, 0, 0);
+        wristJoint.castShadow = true;
+        forearm.add(wristJoint);
+
+        const targetMarker = new THREE.Mesh(
+            new THREE.SphereGeometry(0.14, 18, 16),
+            targetMaterial
+        );
+        targetMarker.castShadow = true;
+        scene.add(targetMarker);
+
+        const targetState = { x: Number(xSlider.value), y: Number(ySlider.value) };
+        const currentAngles = { shoulder: 0, elbow: 0 };
+        const targetAngles = { shoulder: 0, elbow: 0 };
+        const effector = new THREE.Vector3();
+
+        function solveIK(x, y) {
+            let dist = Math.sqrt(x * x + y * y);
+            dist = Math.max(0.001, Math.min(dist, L1 + L2 - 0.001));
+
+            let cos2 = (dist * dist - L1 * L1 - L2 * L2) / (2 * L1 * L2);
+            cos2 = Math.max(-1, Math.min(1, cos2));
+
+            let theta2 = Math.acos(cos2);
+
+            let k1 = L1 + L2 * Math.cos(theta2);
+            let k2 = L2 * Math.sin(theta2);
+
+            let theta1 = Math.atan2(y, x) - Math.atan2(k2, k1);
+
+            return {
+                shoulder: theta1,
+                elbow: theta2
+            };
+        }
+
+        function formatPoint(x, y) {
+            return `(${x.toFixed(2)}, ${y.toFixed(2)})`;
+        }
+
+        function updateTarget() {
+            targetState.x = Number(xSlider.value);
+            targetState.y = Number(ySlider.value);
+
+            xValue.textContent = targetState.x.toFixed(1);
+            yValue.textContent = targetState.y.toFixed(1);
+
+            const result = solveIK(targetState.x, targetState.y);
+            targetAngles.shoulder = result.shoulder;
+            targetAngles.elbow = result.elbow;
+
+            targetMarker.position.set(targetState.x, targetState.y + base.position.y, 0);
+            targetValue.textContent = formatPoint(targetState.x, targetState.y);
+            reachValue.textContent = Math.sqrt(
+                targetState.x * targetState.x + targetState.y * targetState.y
+            ).toFixed(2);
+
+            shoulderValue.textContent = `${THREE.MathUtils.radToDeg(result.shoulder).toFixed(1)}°`;
+            elbowValue.textContent = `${THREE.MathUtils.radToDeg(result.elbow).toFixed(1)}°`;
+        }
+
+        function updateEffectorReadout() {
+            wristJoint.getWorldPosition(effector);
+            effectorValue.textContent = formatPoint(effector.x, effector.y - base.position.y);
+        }
+
+        function handleResize() {
+            const width = sceneMount.clientWidth;
+            const height = sceneMount.clientHeight;
+
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        xSlider.addEventListener("input", updateTarget);
+        ySlider.addEventListener("input", updateTarget);
+        window.addEventListener("resize", handleResize);
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            currentAngles.shoulder = THREE.MathUtils.lerp(
+                currentAngles.shoulder,
+                targetAngles.shoulder,
+                0.14
+            );
+            currentAngles.elbow = THREE.MathUtils.lerp(
+                currentAngles.elbow,
+                targetAngles.elbow,
+                0.14
+            );
+
+            upperArm.rotation.z = currentAngles.shoulder;
+            forearm.rotation.z = currentAngles.elbow;
+
+            updateEffectorReadout();
+            renderer.render(scene, camera);
+        }
+
+        updateTarget();
+        animate();
+    </script>
+</body>
+</html>

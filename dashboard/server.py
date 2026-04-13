@@ -47,6 +47,11 @@ def dashboard3d_ik():
     return render_template("index3d_ik.html")
 
 
+@app.route("/3d-semi-ik")
+def dashboard3d_semi_ik():
+    return render_template("index3d_semi_ik.html")
+
+
 @app.route("/pick-sim")
 def pick_sim():
     return render_template("index_pick_sim.html")
