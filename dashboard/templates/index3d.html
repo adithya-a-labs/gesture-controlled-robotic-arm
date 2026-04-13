@@ -479,10 +479,11 @@
                 s3: Number(data?.s3 ?? 0),
                 s4: Number(data?.s4 ?? 0)
             };
+            const humanElbow = THREE.MathUtils.mapLinear(state.s2, 20, 150, 60, 180);
 
             base.rotation.y = degToRad(state.s4 - 90);
             upperArm.rotation.z = degToRad(state.s3 - 55);
-            forearm.rotation.z = degToRad(state.s2 - state.s3);
+            forearm.rotation.z = THREE.MathUtils.degToRad(humanElbow - 180);
 
             const gripOffset = THREE.MathUtils.clamp(state.s1 / 220, 0, 0.35);
             leftFinger.position.x = -0.18 - gripOffset;
@@ -542,7 +543,7 @@
             renderer.render(scene, camera);
         }
 
-        updateArm({ s1: 0, s2: 0, s3: 0, s4: 0 });
+        updateArm({ s1: 0, s2: 20, s3: 0, s4: 0 });
         updateGripStatus({ manual_override: false });
         animate();
     </script>

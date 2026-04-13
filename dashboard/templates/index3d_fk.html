@@ -578,9 +578,10 @@
                 s3: toNumber(data?.s3),
                 s4: toNumber(data?.s4)
             };
+            const humanElbow = THREE.MathUtils.mapLinear(state.s2, 20, 150, 60, 180);
 
             const theta1 = THREE.MathUtils.degToRad(state.s3 - 55);
-            const theta2 = THREE.MathUtils.degToRad(state.s2 - state.s3);
+            const theta2 = THREE.MathUtils.degToRad(humanElbow - 180);
 
             base.rotation.y = THREE.MathUtils.degToRad(state.s4 - 90);
             shoulder.rotation.z = theta1;
@@ -651,7 +652,7 @@
             renderer.render(scene, camera);
         }
 
-        updateArm({ s1: 0, s2: 0, s3: 0, s4: 0 });
+        updateArm({ s1: 0, s2: 20, s3: 0, s4: 0 });
         updateGripStatus({ manual_override: false });
         animate();
     </script>

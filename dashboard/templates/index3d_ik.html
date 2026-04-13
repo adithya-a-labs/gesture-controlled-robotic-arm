@@ -614,6 +614,7 @@
                 s3: toNumber(data?.s3),
                 s4: toNumber(data?.s4)
             };
+            const humanElbow = THREE.MathUtils.mapLinear(state.s2, 20, 150, 60, 180);
 
             latestState.s1 = state.s1;
             latestState.s2 = state.s2;
@@ -621,7 +622,7 @@
             latestState.s4 = state.s4;
 
             let angle1 = THREE.MathUtils.degToRad(state.s3 - 55);
-            let angle2 = THREE.MathUtils.degToRad(state.s2 - state.s3);
+            let angle2 = THREE.MathUtils.degToRad(humanElbow - 180);
 
             let x = L1 * Math.cos(angle1) + L2 * Math.cos(angle1 + angle2);
             let y = L1 * Math.sin(angle1) + L2 * Math.sin(angle1 + angle2);
@@ -713,7 +714,7 @@
             renderer.render(scene, camera);
         }
 
-        updateArm({ s1: 0, s2: 0, s3: 0, s4: 0 });
+        updateArm({ s1: 0, s2: 20, s3: 0, s4: 0 });
         updateGripStatus({ manual_override: false });
         animate();
     </script>
