@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calibration Panel</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0a1218;
+            --bg-soft: #101f29;
+            --panel: rgba(12, 25, 34, 0.94);
+            --panel-border: rgba(136, 191, 212, 0.16);
+            --text: #eef6fb;
+            --muted: #9bb3c0;
+            --accent: #72dec1;
+            --accent-strong: #1fc39b;
+            --danger: #ff6f61;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Space Grotesk", "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(31, 195, 155, 0.12), transparent 26%),
+                radial-gradient(circle at bottom right, rgba(90, 145, 171, 0.16), transparent 24%),
+                linear-gradient(180deg, #0d1922 0%, var(--bg) 100%);
+        }
+
+        .page {
+            width: min(1080px, calc(100vw - 32px));
+            margin: 0 auto;
+            padding: 28px 0 36px;
+        }
+
+        .hero,
+        .panel,
+        .actions {
+            border-radius: 24px;
+            border: 1px solid var(--panel-border);
+            background: var(--panel);
+            box-shadow: 0 24px 72px rgba(0, 0, 0, 0.24);
+            backdrop-filter: blur(14px);
+        }
+
+        .hero {
+            padding: 24px;
+            margin-bottom: 18px;
+            display: flex;
+            justify-content: space-between;
+            gap: 18px;
+            align-items: flex-start;
+        }
+
+        .eyebrow {
+            margin: 0 0 10px;
+            color: var(--accent);
+            font-size: 0.8rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(2rem, 2vw + 1rem, 3rem);
+            line-height: 1.04;
+        }
+
+        .subcopy {
+            margin: 12px 0 0;
+            max-width: 42rem;
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        .hero-meta {
+            display: grid;
+            gap: 10px;
+            min-width: 220px;
+        }
+
+        .meta-card {
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: var(--bg-soft);
+            border: 1px solid rgba(136, 191, 212, 0.12);
+        }
+
+        .meta-label {
+            display: block;
+            color: var(--muted);
+            font-size: 0.76rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .meta-value {
+            display: block;
+            margin-top: 6px;
+            color: var(--text);
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .panel {
+            padding: 22px;
+        }
+
+        .panel h2 {
+            margin: 0 0 16px;
+            font-size: 1rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .slider-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .slider-row {
+            padding: 16px;
+            border-radius: 18px;
+            background: rgba(8, 17, 24, 0.76);
+            border: 1px solid rgba(136, 191, 212, 0.1);
+        }
+
+        .slider-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .slider-head label {
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .slider-value {
+            min-width: 4.5rem;
+            text-align: right;
+            color: var(--accent);
+            font-variant-numeric: tabular-nums;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent-strong);
+            cursor: pointer;
+        }
+
+        .actions {
+            margin-top: 18px;
+            padding: 18px 22px;
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            border: 0;
+            border-radius: 999px;
+            padding: 10px 16px;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            color: #041116;
+            background: var(--accent);
+            box-shadow: 0 10px 26px rgba(31, 195, 155, 0.16);
+        }
+
+        button.secondary {
+            background: #d9ecf4;
+        }
+
+        button.danger {
+            background: #ffd0ca;
+            color: #4d0d05;
+        }
+
+        #statusText {
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        @media (max-width: 860px) {
+            .hero,
+            .actions {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .hero-meta {
+                width: 100%;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .page {
+                width: min(100vw - 20px, 1080px);
+                padding-top: 18px;
+            }
+
+            .hero,
+            .panel,
+            .actions {
+                padding: 16px;
+                border-radius: 20px;
+            }
+
+            .hero-meta {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <section class="hero">
+            <div>
+                <p class="eyebrow">Live Tuning</p>
+                <h1>Calibration Panel</h1>
+                <p class="subcopy">
+                    Tune servo mapping live without disturbing the existing dashboards. Changes broadcast instantly
+                    across connected views, while save, restore, and reset keep a stable workflow for experiments.
+                </p>
+            </div>
+
+            <div class="hero-meta">
+                <div class="meta-card">
+                    <span class="meta-label">Socket</span>
+                    <span class="meta-value" id="socketStatus">Connecting</span>
+                </div>
+                <div class="meta-card">
+                    <span class="meta-label">Active profile</span>
+                    <span class="meta-value" id="profileStatus">Current Live Calibration</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid">
+            <section class="panel">
+                <h2>Elbow (S2)</h2>
+                <div class="slider-list">
+                    <div class="slider-row">
+                        <div class="slider-head">
+                            <label for="s2_hmin">S2 Human Min</label>
+                            <span class="slider-value" data-value-for="s2_hmin">0</span>
+                        </div>
+                        <input type="range" id="s2_hmin" min="0" max="180" step="1">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-head">
+                            <label for="s2_hmax">S2 Human Max</label>
+                            <span class="slider-value" data-value-for="s2_hmax">0</span>
+                        </div>
+                        <input type="range" id="s2_hmax" min="0" max="180" step="1">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-head">
+                            <label for="s2_smin">S2 Servo Min</label>
+                            <span class="slider-value" data-value-for="s2_smin">0</span>
+                        </div>
+                        <input type="range" id="s2_smin" min="0" max="180" step="1">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-head">
+                            <label for="s2_smax">S2 Servo Max</label>
+                            <span class="slider-value" data-value-for="s2_smax">0</span>
+                        </div>
+                        <input type="range" id="s2_smax" min="0" max="180" step="1">
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <h2>Shoulder (S3)</h2>
+                <div class="slider-list">
+                    <div class="slider-row">
+                        <div class="slider-head">
+                            <label for="s3_offset">S3 Offset</label>
+                            <span class="slider-value" data-value-for="s3_offset">0</span>
+                        </div>
+                        <input type="range" id="s3_offset" min="0" max="180" step="1">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-head">
+                            <label for="s3_min">S3 Servo Min</label>
+                            <span class="slider-value" data-value-for="s3_min">0</span>
+                        </div>
+                        <input type="range" id="s3_min" min="0" max="180" step="1">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-head">
+                            <label for="s3_max">S3 Servo Max</label>
+                            <span class="slider-value" data-value-for="s3_max">0</span>
+                        </div>
+                        <input type="range" id="s3_max" min="0" max="180" step="1">
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <h2>Base (S4)</h2>
+                <div class="slider-list">
+                    <div class="slider-row">
+                        <div class="slider-head">
+                            <label for="s4_center">S4 Center</label>
+                            <span class="slider-value" data-value-for="s4_center">0</span>
+                        </div>
+                        <input type="range" id="s4_center" min="0" max="180" step="1">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-head">
+                            <label for="s4_range">S4 Range</label>
+                            <span class="slider-value" data-value-for="s4_range">0</span>
+                        </div>
+                        <input type="range" id="s4_range" min="2" max="180" step="1">
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <h2>Gripper (S1)</h2>
+                <div class="slider-list">
+                    <div class="slider-row">
+                        <div class="slider-head">
+                            <label for="pinch_threshold">Pinch Threshold</label>
+                            <span class="slider-value" data-value-for="pinch_threshold">0.000</span>
+                        </div>
+                        <input type="range" id="pinch_threshold" min="0" max="0.2" step="0.001">
+                    </div>
+                    <div class="slider-row">
+                        <div class="slider-head">
+                            <label for="release_threshold">Release Threshold</label>
+                            <span class="slider-value" data-value-for="release_threshold">0.000</span>
+                        </div>
+                        <input type="range" id="release_threshold" min="0" max="0.2" step="0.001">
+                    </div>
+                </div>
+            </section>
+        </section>
+
+        <section class="actions">
+            <div class="button-row">
+                <button onclick="saveCalibration()">Save</button>
+                <button class="secondary" onclick="restoreCalibration()">Restore</button>
+                <button class="danger" onclick="resetCalibration()">Reset</button>
+            </div>
+
+            <div id="statusText">Waiting for calibration sync...</div>
+        </section>
+    </main>
+
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const DEFAULT_CALIBRATION = {{ default_calibration|tojson }};
+        const INITIAL_CALIBRATION = {{ initial_calibration|tojson }};
+        const FIELD_CONFIG = {
+            s2_hmin: { decimals: 0 },
+            s2_hmax: { decimals: 0 },
+            s2_smin: { decimals: 0 },
+            s2_smax: { decimals: 0 },
+            s3_offset: { decimals: 0 },
+            s3_min: { decimals: 0 },
+            s3_max: { decimals: 0 },
+            s4_center: { decimals: 0 },
+            s4_range: { decimals: 0 },
+            pinch_threshold: { decimals: 3 },
+            release_threshold: { decimals: 3 }
+        };
+
+        window.calibration = { ...DEFAULT_CALIBRATION, ...INITIAL_CALIBRATION };
+
+        const socketStatus = document.getElementById("socketStatus");
+        const profileStatus = document.getElementById("profileStatus");
+        const statusText = document.getElementById("statusText");
+
+        function getCalibration() {
+            return window.calibration || DEFAULT_CALIBRATION;
+        }
+
+        function formatValue(field, value) {
+            const numericValue = Number(value) || 0;
+            const decimals = FIELD_CONFIG[field]?.decimals ?? 0;
+            return numericValue.toFixed(decimals);
+        }
+
+        function updateValueBadge(field) {
+            const input = document.getElementById(field);
+            const badge = document.querySelector(`[data-value-for="${field}"]`);
+            if (!input || !badge) {
+                return;
+            }
+
+            badge.textContent = formatValue(field, input.value);
+        }
+
+        function readCalibrationForm() {
+            return Object.keys(FIELD_CONFIG).reduce((config, field) => {
+                config[field] = Number(document.getElementById(field).value);
+                return config;
+            }, {});
+        }
+
+        function applyCalibrationToForm(config) {
+            Object.keys(FIELD_CONFIG).forEach(field => {
+                const input = document.getElementById(field);
+                if (!input) {
+                    return;
+                }
+
+                const nextValue = config[field] ?? DEFAULT_CALIBRATION[field];
+                input.value = nextValue;
+                updateValueBadge(field);
+            });
+        }
+
+        function updateCalibration() {
+            statusText.textContent = "Broadcasting calibration update...";
+            profileStatus.textContent = "Unsaved live adjustments";
+
+            socket.emit("update_calibration", readCalibrationForm());
+        }
+
+        function saveCalibration() {
+            socket.emit("save_calibration");
+            profileStatus.textContent = "Saved calibration";
+            statusText.textContent = "Saved the current calibration snapshot.";
+        }
+
+        function restoreCalibration() {
+            socket.emit("restore_calibration");
+            profileStatus.textContent = "Restored saved calibration";
+            statusText.textContent = "Restoring the last saved calibration...";
+        }
+
+        function resetCalibration() {
+            socket.emit("reset_calibration");
+            profileStatus.textContent = "Default calibration";
+            statusText.textContent = "Resetting to default calibration...";
+        }
+
+        Object.keys(FIELD_CONFIG).forEach(field => {
+            const input = document.getElementById(field);
+            input.addEventListener("input", () => {
+                updateValueBadge(field);
+                updateCalibration();
+            });
+            input.addEventListener("change", updateCalibration);
+        });
+
+        socket.on("connect", () => {
+            socketStatus.textContent = "Connected";
+            statusText.textContent = "Requesting live calibration from the server...";
+            socket.emit("request_calibration");
+        });
+
+        socket.on("disconnect", () => {
+            socketStatus.textContent = "Disconnected";
+            statusText.textContent = "Connection lost. Waiting to reconnect...";
+        });
+
+        socket.on("calibration_update", config => {
+            window.calibration = { ...DEFAULT_CALIBRATION, ...(config || {}) };
+            applyCalibrationToForm(window.calibration);
+            statusText.textContent = "Calibration synchronized across dashboards.";
+        });
+
+        applyCalibrationToForm(window.calibration);
+        socket.emit("request_calibration");
+    </script>
+</body>
+</html>

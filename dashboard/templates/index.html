@@ -174,8 +174,7 @@
 
     <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
     <script>
-        const socket = window.dashboardSocket || io();
-        window.dashboardSocket = socket;
+        const socket = io();
         const canvas = document.getElementById("armCanvas");
         const ctx = canvas.getContext("2d");
         const gripStatus = document.getElementById("gripStatus");
@@ -185,6 +184,11 @@
             s3: document.getElementById("s3Value"),
             s4: document.getElementById("s4Value")
         };
+        const DEFAULT_CALIBRATION = {{ default_calibration|tojson }};
+        const INITIAL_CALIBRATION = {{ initial_calibration|tojson }};
+        const latestState = { s1: 0, s2: 0, s3: 0, s4: 0 };
+
+        window.calibration = { ...DEFAULT_CALIBRATION, ...INITIAL_CALIBRATION };
 
         const armLengths = {
             base: 55,
@@ -195,6 +199,74 @@
 
         function toRadians(deg) {
             return deg * Math.PI / 180;
+        }
+
+        function calibrationNumber(value, fallback) {
+            const number = Number(value);
+            return Number.isFinite(number) ? number : fallback;
+        }
+
+        function calibrationRange(minValue, maxValue, fallbackMin, fallbackMax) {
+            let lower = calibrationNumber(minValue, fallbackMin);
+            let upper = calibrationNumber(maxValue, fallbackMax);
+
+            if (lower > upper) {
+                [lower, upper] = [upper, lower];
+            }
+
+            if (lower === upper) {
+                upper = lower + 1;
+            }
+
+            return { min: lower, max: upper };
+        }
+
+        function clamp(value, minValue, maxValue) {
+            return Math.min(Math.max(value, minValue), maxValue);
+        }
+
+        function mapLinear(value, inputMin, inputMax, outputMin, outputMax) {
+            if (inputMin === inputMax) {
+                return outputMin;
+            }
+
+            return outputMin + ((value - inputMin) * (outputMax - outputMin)) / (inputMax - inputMin);
+        }
+
+        function getCalibration() {
+            return window.calibration || DEFAULT_CALIBRATION;
+        }
+
+        function getElbowRanges() {
+            const calibration = getCalibration();
+            return {
+                human: calibrationRange(
+                    calibration.s2_hmin,
+                    calibration.s2_hmax,
+                    DEFAULT_CALIBRATION.s2_hmin,
+                    DEFAULT_CALIBRATION.s2_hmax
+                ),
+                servo: calibrationRange(
+                    calibration.s2_smin,
+                    calibration.s2_smax,
+                    DEFAULT_CALIBRATION.s2_smin,
+                    DEFAULT_CALIBRATION.s2_smax
+                )
+            };
+        }
+
+        function getShoulderOffset() {
+            return calibrationNumber(getCalibration().s3_offset, DEFAULT_CALIBRATION.s3_offset);
+        }
+
+        function getBaseCenter() {
+            return calibrationNumber(getCalibration().s4_center, DEFAULT_CALIBRATION.s4_center);
+        }
+
+        function mapServoToHumanElbow(servoValue) {
+            const { human, servo } = getElbowRanges();
+            const clampedValue = clamp(calibrationNumber(servoValue, servo.min), servo.min, servo.max);
+            return mapLinear(clampedValue, servo.min, servo.max, human.min, human.max);
         }
 
         function drawSegment(fromX, fromY, toX, toY, width, color) {
@@ -259,13 +331,19 @@
         }
 
         function drawArm(state) {
+            latestState.s1 = Number(state?.s1 ?? 0);
+            latestState.s2 = Number(state?.s2 ?? 0);
+            latestState.s3 = Number(state?.s3 ?? 0);
+            latestState.s4 = Number(state?.s4 ?? 0);
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             drawGrid();
 
             const basePivot = { x: canvas.width / 2, y: canvas.height - 55 };
-            const baseAngle = toRadians((state.s4 ?? 0) - 90);
-            const shoulderAngle = baseAngle + toRadians((state.s3 ?? 0) - 55);
-            const elbowAngle = shoulderAngle + toRadians((state.s2 ?? 0) - (state.s3 ?? 0));
+            const humanElbow = mapServoToHumanElbow(latestState.s2);
+            const baseAngle = toRadians(latestState.s4 - getBaseCenter());
+            const shoulderAngle = baseAngle + toRadians(latestState.s3 - getShoulderOffset());
+            const elbowAngle = shoulderAngle + toRadians(humanElbow - 180);
 
             const baseJoint = {
                 x: basePivot.x + armLengths.base * Math.cos(baseAngle),
@@ -293,8 +371,8 @@
             drawSegment(elbowJoint.x, elbowJoint.y, wristJoint.x, wristJoint.y, 12, "#2d5f73");
             drawSegment(wristJoint.x, wristJoint.y, wristTip.x, wristTip.y, 8, "#3e8b8f");
 
-            const gripColor = (state.s1 ?? 0) > 90 ? "#d64550" : "#2e8b57";
-            const gripSpread = (state.s1 ?? 0) > 90 ? 10 : 22;
+            const gripColor = latestState.s1 > 90 ? "#d64550" : "#2e8b57";
+            const gripSpread = latestState.s1 > 90 ? 10 : 22;
             const upperFingerAngle = handAngle + toRadians(gripSpread);
             const lowerFingerAngle = handAngle - toRadians(gripSpread);
             const fingerLength = 28;
@@ -322,7 +400,7 @@
             drawJoint(wristJoint.x, wristJoint.y, 8);
             drawJoint(wristTip.x, wristTip.y, 6);
 
-            updateReadout(state);
+            updateReadout(latestState);
         }
 
         socket.on("update", data => {
@@ -334,8 +412,15 @@
             updateGripStatus(data);
         });
 
+        socket.on("calibration_update", config => {
+            window.calibration = { ...DEFAULT_CALIBRATION, ...(config || {}) };
+            drawArm(latestState);
+        });
+
+        socket.emit("request_calibration");
+
         updateGripStatus({ manual_override: false });
-        drawArm({ s1: 0, s2: 0, s3: 0, s4: 0 });
+        drawArm(latestState);
     </script>
 </body>
 </html>

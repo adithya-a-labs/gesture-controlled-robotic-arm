@@ -2,6 +2,7 @@ import sys
 
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
+import calibration as calibration_store
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -16,6 +17,14 @@ current_state = {
     "manual_state": False,
     "gripper_mode": "AUTO",
 }
+
+
+@app.context_processor
+def inject_shared_dashboard_state():
+    return {
+        "default_calibration": calibration_store.DEFAULT_CALIBRATION,
+        "initial_calibration": calibration_store.get_calibration(),
+    }
 
 
 @app.route("/")
@@ -41,6 +50,11 @@ def dashboard3d_ik():
 @app.route("/pick-sim")
 def pick_sim():
     return render_template("index_pick_sim.html")
+
+
+@app.route("/tune")
+def tune_dashboard():
+    return render_template("calibration.html")
 
 
 def set_model(active_model):
@@ -95,6 +109,7 @@ def handle_connect():
     current_state.update(get_gripper_state())
     emit("update", current_state)
     emit("gripper_mode", get_gripper_state())
+    emit("calibration_update", calibration_store.get_calibration())
 
 
 @socketio.on("toggle_gripper")
@@ -128,6 +143,34 @@ def auto_gripper():
         current_state["manual_override"] = False
 
     sync_gripper_state(model, emit_update=True)
+
+
+@socketio.on("update_calibration")
+def update_calibration(data):
+    updated_calibration = calibration_store.update_calibration_values(data)
+    socketio.emit("calibration_update", updated_calibration)
+
+
+@socketio.on("request_calibration")
+def send_calibration():
+    emit("calibration_update", calibration_store.get_calibration())
+
+
+@socketio.on("save_calibration")
+def save_calibration():
+    calibration_store.save_calibration_values()
+
+
+@socketio.on("reset_calibration")
+def reset_calibration():
+    updated_calibration = calibration_store.reset_calibration_values()
+    socketio.emit("calibration_update", updated_calibration)
+
+
+@socketio.on("restore_calibration")
+def restore_calibration():
+    updated_calibration = calibration_store.restore_calibration_values()
+    socketio.emit("calibration_update", updated_calibration)
 
 
 def update_state(s1, s2, s3, s4):

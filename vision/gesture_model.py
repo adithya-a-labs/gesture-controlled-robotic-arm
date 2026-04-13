@@ -1,4 +1,12 @@
 import numpy as np
+from calibration import (
+    DEFAULT_CALIBRATION,
+    get_base_servo_range,
+    get_calibration,
+    get_elbow_human_range,
+    get_elbow_servo_range,
+    get_shoulder_servo_range,
+)
 
 ELBOW_RANGE = (60, 140)
 ELBOW_SERVO_RANGE = (20, 150)
@@ -57,8 +65,8 @@ class GestureModel:
         self.prev_s4 = 90
         self.prev_grip = 0
         self.gripper_closed = False
-        self.pinch_threshold = 0.04
-        self.release_threshold = 0.07
+        self.pinch_threshold = DEFAULT_CALIBRATION["pinch_threshold"]
+        self.release_threshold = DEFAULT_CALIBRATION["release_threshold"]
         self.manual_override = False
         self.manual_state = False
         self.prev_pose_points = None
@@ -208,6 +216,24 @@ class GestureModel:
         value = self.safe_number(limited, fallback)
         return int(round(np.clip(value, 0, 180)))
 
+    def get_calibration_snapshot(self):
+        return get_calibration()
+
+    def resolve_pinch_thresholds(self, config):
+        pinch_threshold = self.safe_number(
+            config.get("pinch_threshold"),
+            DEFAULT_CALIBRATION["pinch_threshold"],
+        )
+        release_threshold = self.safe_number(
+            config.get("release_threshold"),
+            DEFAULT_CALIBRATION["release_threshold"],
+        )
+        release_threshold = max(release_threshold, pinch_threshold)
+
+        self.pinch_threshold = pinch_threshold
+        self.release_threshold = release_threshold
+        return pinch_threshold, release_threshold
+
     def debug_output(self, output):
         s1, s2, s3, s4 = output
         print(f"""
@@ -234,6 +260,13 @@ S1 (Gripper)         : {s1:.1f}
             previous_output[3],
         )
         try:
+            config = self.get_calibration_snapshot()
+            elbow_human_range = get_elbow_human_range(config)
+            elbow_servo_range = get_elbow_servo_range(config)
+            shoulder_servo_range = get_shoulder_servo_range(config)
+            base_servo_range = get_base_servo_range(config)
+            pinch_threshold, release_threshold = self.resolve_pinch_thresholds(config)
+
             pose = self.get_pose_points(pose_result)
             hand = self.get_hand_points(hand_result)
 
@@ -254,10 +287,9 @@ S1 (Gripper)         : {s1:.1f}
                 ref_dist = np.linalg.norm(np.array(index_mcp, dtype=float) - np.array(hand_wrist, dtype=float))
 
                 if is_finite_number(tip_dist) and is_finite_number(ref_dist) and ref_dist > 0:
-                    ratio = tip_dist / ref_dist
-                    if ratio < 0.25:
+                    if tip_dist < pinch_threshold:
                         grip = 1
-                    elif ratio > 0.35:
+                    elif tip_dist > release_threshold:
                         grip = 0
 
             self.gripper_closed = bool(grip)
@@ -266,13 +298,13 @@ S1 (Gripper)         : {s1:.1f}
             raw_s3 = shoulder_angle - 90
 
             if is_finite_number(raw_s2):
-                target_s2 = np.interp(raw_s2, [60, 180], [20, 150])
-                target_s2 = np.clip(target_s2, 20, 150)
+                target_s2 = self.map_range(raw_s2, elbow_human_range, elbow_servo_range, previous_output[1])
+                target_s2 = np.clip(target_s2, *elbow_servo_range)
             else:
                 target_s2 = previous_output[1]
 
             if is_finite_number(raw_s3):
-                target_s3 = self.map_range(raw_s3, SHOULDER_RANGE, SHOULDER_SERVO_RANGE, previous_output[2])
+                target_s3 = self.map_range(raw_s3, SHOULDER_RANGE, shoulder_servo_range, previous_output[2])
             else:
                 target_s3 = previous_output[2]
 
@@ -282,15 +314,15 @@ S1 (Gripper)         : {s1:.1f}
             smooth_s2 = self.smooth(target_s2, self.prev_s2, s2_alpha)
             smooth_s3 = self.smooth(target_s3, self.prev_s3, s3_alpha)
 
-            s2 = int(np.clip(self.finalize_servo(smooth_s2, self.prev_s2, previous_output[1]), *ELBOW_SERVO_RANGE))
-            s3 = int(np.clip(self.finalize_servo(smooth_s3, self.prev_s3, previous_output[2]), *SHOULDER_SERVO_RANGE))
+            s2 = int(np.clip(self.finalize_servo(smooth_s2, self.prev_s2, previous_output[1]), *elbow_servo_range))
+            s3 = int(np.clip(self.finalize_servo(smooth_s3, self.prev_s3, previous_output[2]), *shoulder_servo_range))
             try:
                 raw_s4 = self.compute_torso_offset(l_hip, r_hip)
                 if not is_finite_number(raw_s4):
                     raise ValueError("Computed torso offset is not finite")
 
-                s4 = self.map_range(raw_s4, BASE_OFFSET_RANGE, BASE_SERVO_RANGE, previous_output[3])
-                s4 = int(np.clip(s4, *BASE_SERVO_RANGE))
+                s4 = self.map_range(raw_s4, BASE_OFFSET_RANGE, base_servo_range, previous_output[3])
+                s4 = int(np.clip(s4, *base_servo_range))
 
                 alpha = 0.3
                 s4 = int(alpha * s4 + (1 - alpha) * self.prev_s4)
@@ -301,7 +333,7 @@ S1 (Gripper)         : {s1:.1f}
                 if abs(delta) > max_step:
                     s4 = int(self.prev_s4 + max_step * np.sign(delta))
 
-                s4 = int(np.clip(s4, *BASE_SERVO_RANGE))
+                s4 = int(np.clip(s4, *base_servo_range))
             except Exception:
                 s4 = int(self.prev_s4)
 

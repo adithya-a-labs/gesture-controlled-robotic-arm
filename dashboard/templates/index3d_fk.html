@@ -369,6 +369,73 @@
             theta2: document.getElementById("theta2Value"),
             wrist: document.getElementById("wristValue")
         };
+        const DEFAULT_CALIBRATION = {{ default_calibration|tojson }};
+        const INITIAL_CALIBRATION = {{ initial_calibration|tojson }};
+        const latestState = { s1: 0, s2: 20, s3: 0, s4: 0 };
+
+        window.calibration = { ...DEFAULT_CALIBRATION, ...INITIAL_CALIBRATION };
+
+        function calibrationNumber(value, fallback) {
+            const number = Number(value);
+            return Number.isFinite(number) ? number : fallback;
+        }
+
+        function calibrationRange(minValue, maxValue, fallbackMin, fallbackMax) {
+            let lower = calibrationNumber(minValue, fallbackMin);
+            let upper = calibrationNumber(maxValue, fallbackMax);
+
+            if (lower > upper) {
+                [lower, upper] = [upper, lower];
+            }
+
+            if (lower === upper) {
+                upper = lower + 1;
+            }
+
+            return { min: lower, max: upper };
+        }
+
+        function getCalibration() {
+            return window.calibration || DEFAULT_CALIBRATION;
+        }
+
+        function getElbowRanges() {
+            const calibration = getCalibration();
+            return {
+                human: calibrationRange(
+                    calibration.s2_hmin,
+                    calibration.s2_hmax,
+                    DEFAULT_CALIBRATION.s2_hmin,
+                    DEFAULT_CALIBRATION.s2_hmax
+                ),
+                servo: calibrationRange(
+                    calibration.s2_smin,
+                    calibration.s2_smax,
+                    DEFAULT_CALIBRATION.s2_smin,
+                    DEFAULT_CALIBRATION.s2_smax
+                )
+            };
+        }
+
+        function getShoulderOffset() {
+            return calibrationNumber(getCalibration().s3_offset, DEFAULT_CALIBRATION.s3_offset);
+        }
+
+        function getBaseCenter() {
+            return calibrationNumber(getCalibration().s4_center, DEFAULT_CALIBRATION.s4_center);
+        }
+
+        function mapServoToHumanElbow(servoValue) {
+            const { human, servo } = getElbowRanges();
+            const clampedValue = THREE.MathUtils.clamp(calibrationNumber(servoValue, servo.min), servo.min, servo.max);
+            return THREE.MathUtils.mapLinear(
+                clampedValue,
+                servo.min,
+                servo.max,
+                human.min,
+                human.max
+            );
+        }
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x08131a);
@@ -578,12 +645,16 @@
                 s3: toNumber(data?.s3),
                 s4: toNumber(data?.s4)
             };
-            const humanElbow = THREE.MathUtils.mapLinear(state.s2, 20, 150, 60, 180);
+            latestState.s1 = state.s1;
+            latestState.s2 = state.s2;
+            latestState.s3 = state.s3;
+            latestState.s4 = state.s4;
+            const humanElbow = mapServoToHumanElbow(state.s2);
 
-            const theta1 = THREE.MathUtils.degToRad(state.s3 - 55);
+            const theta1 = THREE.MathUtils.degToRad(state.s3 - getShoulderOffset());
             const theta2 = THREE.MathUtils.degToRad(humanElbow - 180);
 
-            base.rotation.y = THREE.MathUtils.degToRad(state.s4 - 90);
+            base.rotation.y = THREE.MathUtils.degToRad(state.s4 - getBaseCenter());
             shoulder.rotation.z = theta1;
             elbow.rotation.z = theta2;
 
@@ -597,8 +668,7 @@
             updateReadouts(state, theta1, theta2);
         }
 
-        const socket = window.dashboardSocket || io();
-        window.dashboardSocket = socket;
+        const socket = io();
 
         function updateGripStatus(data) {
             const manualOverride = Boolean(data?.manual_override);
@@ -636,6 +706,13 @@
             updateGripStatus(data);
         });
 
+        socket.on("calibration_update", config => {
+            window.calibration = { ...DEFAULT_CALIBRATION, ...(config || {}) };
+            updateArm(latestState);
+        });
+
+        socket.emit("request_calibration");
+
         function handleResize() {
             const width = sceneMount.clientWidth;
             const height = sceneMount.clientHeight;
@@ -652,7 +729,7 @@
             renderer.render(scene, camera);
         }
 
-        updateArm({ s1: 0, s2: 20, s3: 0, s4: 0 });
+        updateArm(latestState);
         updateGripStatus({ manual_override: false });
         animate();
     </script>

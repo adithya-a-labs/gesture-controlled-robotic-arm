@@ -319,6 +319,7 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
     <script>
         const sceneMount = document.getElementById("sceneMount");
         const phaseLabel = document.getElementById("phaseLabel");
@@ -330,6 +331,11 @@
             s3: document.getElementById("s3Value"),
             s4: document.getElementById("s4Value")
         };
+        const socket = io();
+        const DEFAULT_CALIBRATION = {{ default_calibration|tojson }};
+        const INITIAL_CALIBRATION = {{ initial_calibration|tojson }};
+
+        window.calibration = { ...DEFAULT_CALIBRATION, ...INITIAL_CALIBRATION };
 
         let state = {
             s1: 0,
@@ -545,6 +551,68 @@
             return THREE.MathUtils.degToRad(Number(value) || 0);
         }
 
+        function calibrationNumber(value, fallback) {
+            const number = Number(value);
+            return Number.isFinite(number) ? number : fallback;
+        }
+
+        function calibrationRange(minValue, maxValue, fallbackMin, fallbackMax) {
+            let lower = calibrationNumber(minValue, fallbackMin);
+            let upper = calibrationNumber(maxValue, fallbackMax);
+
+            if (lower > upper) {
+                [lower, upper] = [upper, lower];
+            }
+
+            if (lower === upper) {
+                upper = lower + 1;
+            }
+
+            return { min: lower, max: upper };
+        }
+
+        function getCalibration() {
+            return window.calibration || DEFAULT_CALIBRATION;
+        }
+
+        function getElbowRanges() {
+            const calibration = getCalibration();
+            return {
+                human: calibrationRange(
+                    calibration.s2_hmin,
+                    calibration.s2_hmax,
+                    DEFAULT_CALIBRATION.s2_hmin,
+                    DEFAULT_CALIBRATION.s2_hmax
+                ),
+                servo: calibrationRange(
+                    calibration.s2_smin,
+                    calibration.s2_smax,
+                    DEFAULT_CALIBRATION.s2_smin,
+                    DEFAULT_CALIBRATION.s2_smax
+                )
+            };
+        }
+
+        function getShoulderOffset() {
+            return calibrationNumber(getCalibration().s3_offset, DEFAULT_CALIBRATION.s3_offset);
+        }
+
+        function getBaseCenter() {
+            return calibrationNumber(getCalibration().s4_center, DEFAULT_CALIBRATION.s4_center);
+        }
+
+        function mapServoToHumanElbow(servoValue) {
+            const { human, servo } = getElbowRanges();
+            const clampedValue = THREE.MathUtils.clamp(calibrationNumber(servoValue, servo.min), servo.min, servo.max);
+            return THREE.MathUtils.mapLinear(
+                clampedValue,
+                servo.min,
+                servo.max,
+                human.min,
+                human.max
+            );
+        }
+
         function formatServo(value) {
             return `${Math.round(value)}°`;
         }
@@ -564,9 +632,9 @@
         }
 
         function applyRotations() {
-            const humanElbow = THREE.MathUtils.mapLinear(state.s2, 20, 150, 60, 180);
-            base.rotation.y = degToRad(state.s4 - 90);
-            shoulder.rotation.z = degToRad(state.s3 - 55);
+            const humanElbow = mapServoToHumanElbow(state.s2);
+            base.rotation.y = degToRad(state.s4 - getBaseCenter());
+            shoulder.rotation.z = degToRad(state.s3 - getShoulderOffset());
             elbow.rotation.z = THREE.MathUtils.degToRad(humanElbow - 180);
 
             const closeRatio = THREE.MathUtils.clamp(state.s1 / 180, 0, 1);
@@ -626,6 +694,13 @@
         }
 
         window.addEventListener("resize", handleResize);
+
+        socket.on("calibration_update", config => {
+            window.calibration = { ...DEFAULT_CALIBRATION, ...(config || {}) };
+            applyRotations();
+        });
+
+        socket.emit("request_calibration");
 
         function animate(now) {
             requestAnimationFrame(animate);
