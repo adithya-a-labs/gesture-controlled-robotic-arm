@@ -1,3 +1,24 @@
+"""
+SERVO MAPPING (IMPORTANT)
+
+S4 -> Base rotation (torso left/right)
+S3 -> Shoulder joint (arm up/down)
+S2 -> Elbow joint (arm bending)
+S1 -> Gripper (pinch open/close)
+
+DATA FORMAT SENT TO ESP32:
+    s4, s3, s2, s1
+
+Example:
+    90, 60, 120, 0
+
+Which means:
+    Base facing forward
+    Shoulder slightly raised
+    Elbow bent
+    Gripper open
+"""
+
 import threading
 import time
 
@@ -46,6 +67,7 @@ def processing_loop(tracker, model):
             update_state(s1, s2, s3, s4)
 
             try:
+                # ESP32 expects values in base, shoulder, elbow, gripper order.
                 data = f"{s4},{s3},{s2},{s1}\n"
                 ser.write(data.encode())
                 print(f"Sent: {s4},{s3},{s2},{s1}")
@@ -85,17 +107,17 @@ try:
         if servo_angles:
             s1, s2, s3, s4 = servo_angles
 
-            cv2.putText(frame, f"S1: {s1}", (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            cv2.putText(frame, f"S4 Base: {int(s4)}", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-            cv2.putText(frame, f"S2: {s2}", (10, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            cv2.putText(frame, f"S3 Shoulder: {int(s3)}", (10, 60),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-            cv2.putText(frame, f"S3: {s3}", (10, 90),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            cv2.putText(frame, f"S2 Elbow: {int(s2)}", (10, 90),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-            cv2.putText(frame, f"S4 (Base): {s4}", (10, 120),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            cv2.putText(frame, f"S1 Gripper: {int(s1)}", (10, 120),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
         cv2.imshow("Arm Control", frame)
 

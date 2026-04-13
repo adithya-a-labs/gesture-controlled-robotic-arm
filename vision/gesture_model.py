@@ -210,7 +210,14 @@ class GestureModel:
 
     def debug_output(self, output):
         s1, s2, s3, s4 = output
-        print("DEBUG:", s1, s2, s3, s4)
+        print(f"""
+--- SERVO MAPPING ---
+S4 (Base / Torso)    : {s4:.1f} deg
+S3 (Shoulder Joint)  : {s3:.1f} deg
+S2 (Elbow Joint)     : {s2:.1f} deg
+S1 (Gripper)         : {s1:.1f}
+----------------------
+""")
         return output
 
     def resolve_gripper_servo(self):
@@ -308,6 +315,11 @@ class GestureModel:
             self.prev_s4 = s4
             self.prev_grip = grip
             self.prev_output = (s1, s2, s3, s4)
+            # Returns:
+            # s1 -> gripper (pinch)
+            # s2 -> elbow
+            # s3 -> shoulder
+            # s4 -> base (torso rotation)
             return self.debug_output(self.prev_output)
         except Exception:
             self.prev_output = previous_output
