@@ -61,6 +61,48 @@
             height: 100%;
         }
 
+        .gripper-controls {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 12;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .gripper-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .gripper-actions button {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 999px;
+            padding: 8px 14px;
+            font: inherit;
+            cursor: pointer;
+            color: var(--text);
+            background: rgba(6, 16, 22, 0.84);
+            box-shadow: 0 16px 28px rgba(0, 0, 0, 0.18);
+        }
+
+        .gripper-actions button:last-child {
+            background: rgba(255, 139, 66, 0.18);
+            border-color: rgba(244, 184, 96, 0.28);
+        }
+
+        #gripStatus {
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(6, 16, 22, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 0.85rem;
+        }
+
         .overlay {
             position: absolute;
             inset: 0;
@@ -239,6 +281,13 @@
     <main class="layout">
         <section class="panel viewport">
             <div id="sceneMount"></div>
+            <div class="gripper-controls">
+                <div class="gripper-actions">
+                    <button onclick="toggleGrip()">Toggle Grip</button>
+                    <button onclick="setAuto()">Auto Mode</button>
+                </div>
+                <div id="gripStatus">Mode: AUTO</div>
+            </div>
 
             <div class="overlay">
                 <div class="hero">
@@ -310,6 +359,7 @@
 
         const sceneMount = document.getElementById("sceneMount");
         const socketStatus = document.getElementById("socketStatus");
+        const gripStatus = document.getElementById("gripStatus");
         const readouts = {
             s1: document.getElementById("s1Value"),
             s2: document.getElementById("s2Value"),
@@ -546,7 +596,23 @@
             updateReadouts(state, theta1, theta2);
         }
 
-        const socket = io();
+        const socket = window.dashboardSocket || io();
+        window.dashboardSocket = socket;
+
+        function updateGripStatus(data) {
+            const manualOverride = Boolean(data?.manual_override);
+            gripStatus.innerText = `Mode: ${manualOverride ? "MANUAL" : "AUTO"}`;
+        }
+
+        function toggleGrip() {
+            socket.emit("toggle_gripper");
+            gripStatus.innerText = "Mode: MANUAL";
+        }
+
+        function setAuto() {
+            socket.emit("auto_gripper");
+            gripStatus.innerText = "Mode: AUTO";
+        }
 
         socket.on("connect", () => {
             socketStatus.textContent = "Connected";
@@ -562,6 +628,11 @@
 
         socket.on("update", data => {
             updateArm(data);
+            updateGripStatus(data);
+        });
+
+        socket.on("gripper_mode", data => {
+            updateGripStatus(data);
         });
 
         function handleResize() {
@@ -581,6 +652,7 @@
         }
 
         updateArm({ s1: 0, s2: 0, s3: 0, s4: 0 });
+        updateGripStatus({ manual_override: false });
         animate();
     </script>
 </body>

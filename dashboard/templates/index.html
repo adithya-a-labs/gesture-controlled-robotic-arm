@@ -33,6 +33,7 @@
         }
 
         .panel {
+            position: relative;
             width: min(92vw, 760px);
             padding: 24px;
             border-radius: 20px;
@@ -88,6 +89,47 @@
             font-weight: 700;
         }
 
+        .gripper-controls {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .gripper-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .gripper-actions button {
+            border: 0;
+            border-radius: 999px;
+            padding: 8px 14px;
+            font: inherit;
+            cursor: pointer;
+            background: var(--accent);
+            color: #ffffff;
+            box-shadow: 0 10px 20px rgba(15, 139, 141, 0.18);
+        }
+
+        .gripper-actions button:last-child {
+            background: #31586a;
+        }
+
+        #gripStatus {
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(22, 49, 63, 0.08);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
         @media (max-width: 640px) {
             .readout {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -97,6 +139,14 @@
 </head>
 <body>
     <section class="panel">
+        <div class="gripper-controls">
+            <div class="gripper-actions">
+                <button onclick="toggleGrip()">Toggle Grip</button>
+                <button onclick="setAuto()">Auto Mode</button>
+            </div>
+            <div id="gripStatus">Mode: AUTO</div>
+        </div>
+
         <h1>Gesture-Controlled Arm</h1>
         <p>Live digital twin driven by the latest servo state from the camera pipeline.</p>
 
@@ -124,9 +174,11 @@
 
     <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
     <script>
-        const socket = io();
+        const socket = window.dashboardSocket || io();
+        window.dashboardSocket = socket;
         const canvas = document.getElementById("armCanvas");
         const ctx = canvas.getContext("2d");
+        const gripStatus = document.getElementById("gripStatus");
         const readouts = {
             s1: document.getElementById("s1Value"),
             s2: document.getElementById("s2Value"),
@@ -189,6 +241,21 @@
             readouts.s2.textContent = state.s2;
             readouts.s3.textContent = state.s3;
             readouts.s4.textContent = state.s4;
+        }
+
+        function updateGripStatus(data) {
+            const manualOverride = Boolean(data?.manual_override);
+            gripStatus.innerText = `Mode: ${manualOverride ? "MANUAL" : "AUTO"}`;
+        }
+
+        function toggleGrip() {
+            socket.emit("toggle_gripper");
+            gripStatus.innerText = "Mode: MANUAL";
+        }
+
+        function setAuto() {
+            socket.emit("auto_gripper");
+            gripStatus.innerText = "Mode: AUTO";
         }
 
         function drawArm(state) {
@@ -260,8 +327,14 @@
 
         socket.on("update", data => {
             drawArm(data);
+            updateGripStatus(data);
         });
 
+        socket.on("gripper_mode", data => {
+            updateGripStatus(data);
+        });
+
+        updateGripStatus({ manual_override: false });
         drawArm({ s1: 0, s2: 0, s3: 0, s4: 0 });
     </script>
 </body>

@@ -56,6 +56,11 @@ class GestureModel:
         self.prev_s3 = DEFAULT_SERVO_ANGLES[2]
         self.prev_s4 = 90
         self.prev_grip = 0
+        self.gripper_closed = False
+        self.pinch_threshold = 0.04
+        self.release_threshold = 0.07
+        self.manual_override = False
+        self.manual_state = False
         self.prev_pose_points = None
         self.prev_output = DEFAULT_SERVO_ANGLES
 
@@ -208,8 +213,19 @@ class GestureModel:
         print("DEBUG:", s1, s2, s3, s4)
         return output
 
+    def resolve_gripper_servo(self):
+        if self.manual_override:
+            return 100 if self.manual_state else 0
+        return 100 if self.gripper_closed else 0
+
     def compute_servo_angles(self, pose_result, hand_result):
         previous_output = self.get_previous_output()
+        previous_output = (
+            self.resolve_gripper_servo(),
+            previous_output[1],
+            previous_output[2],
+            previous_output[3],
+        )
         try:
             pose = self.get_pose_points(pose_result)
             hand = self.get_hand_points(hand_result)
@@ -236,6 +252,8 @@ class GestureModel:
                         grip = 1
                     elif ratio > 0.35:
                         grip = 0
+
+            self.gripper_closed = bool(grip)
 
             raw_s2 = elbow_angle
             raw_s3 = shoulder_angle - 90
@@ -279,7 +297,7 @@ class GestureModel:
             except Exception:
                 s4 = int(self.prev_s4)
 
-            s1 = 180 if grip else 0
+            s1 = self.resolve_gripper_servo()
 
             if any(v is None for v in (s1, s2, s3, s4)):
                 self.prev_output = previous_output
