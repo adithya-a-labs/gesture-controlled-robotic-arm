@@ -3,7 +3,6 @@ from calibration import (
     DEFAULT_CALIBRATION,
     get_base_servo_range,
     get_calibration,
-    get_elbow_human_range,
     get_elbow_servo_range,
     get_shoulder_center,
     get_shoulder_servo_range,
@@ -13,9 +12,11 @@ ELBOW_RANGE = (60, 140)
 ELBOW_SERVO_RANGE = (20, 150)
 BASE_OFFSET_RANGE = (-1, 1)
 BASE_SERVO_RANGE = (60, 120)
+GRIPPER_OPEN = 10
+GRIPPER_CLOSED = 100
 DEFAULT_SERVO_ANGLES = (
-    0,
-    90,
+    GRIPPER_OPEN,
+    DEFAULT_CALIBRATION["s2_smin"],
     DEFAULT_CALIBRATION["s3_center"],
     DEFAULT_CALIBRATION["s4_center"],
 )
@@ -199,10 +200,21 @@ class GestureModel:
         return points
 
     def get_previous_output(self):
-        return tuple(
-            int(round(np.clip(self.safe_number(value, DEFAULT_SERVO_ANGLES[i]), 0, 180)))
-            for i, value in enumerate(self.prev_output)
-        )
+        previous_output = []
+        for i, value in enumerate(self.prev_output):
+            lower, upper = (GRIPPER_OPEN, GRIPPER_CLOSED) if i == 0 else (0, 180)
+            previous_output.append(
+                int(
+                    round(
+                        np.clip(
+                            self.safe_number(value, DEFAULT_SERVO_ANGLES[i]),
+                            lower,
+                            upper,
+                        )
+                    )
+                )
+            )
+        return tuple(previous_output)
 
     def map_range(self, value, source_range, target_range, fallback):
         fallback = self.safe_number(fallback, 0.0)
@@ -251,9 +263,16 @@ S1 (Gripper)         : {s1:.1f}
         return output
 
     def resolve_gripper_servo(self):
+        OPEN = GRIPPER_OPEN
+        CLOSED = GRIPPER_CLOSED
+
         if self.manual_override:
-            return 100 if self.manual_state else 0
-        return 100 if self.gripper_closed else 0
+            s1 = CLOSED if self.manual_state else OPEN
+        else:
+            s1 = CLOSED if self.gripper_closed else OPEN
+
+        s1 = np.clip(s1, OPEN, CLOSED)
+        return int(s1)
 
     def compute_servo_angles(self, pose_result, hand_result):
         previous_output = self.get_previous_output()
@@ -265,7 +284,6 @@ S1 (Gripper)         : {s1:.1f}
         )
         try:
             config = self.get_calibration_snapshot()
-            elbow_human_range = get_elbow_human_range(config)
             elbow_servo_range = get_elbow_servo_range(config)
             shoulder_center = get_shoulder_center(config)
             shoulder_servo_range = get_shoulder_servo_range(config)
@@ -302,7 +320,11 @@ S1 (Gripper)         : {s1:.1f}
             raw_s2 = elbow_angle
 
             if is_finite_number(raw_s2):
-                target_s2 = self.map_range(raw_s2, elbow_human_range, elbow_servo_range, previous_output[1])
+                target_s2 = np.interp(
+                    raw_s2,
+                    [60, 180],
+                    [elbow_servo_range[0], elbow_servo_range[1]],
+                )
                 target_s2 = np.clip(target_s2, *elbow_servo_range)
             else:
                 target_s2 = previous_output[1]

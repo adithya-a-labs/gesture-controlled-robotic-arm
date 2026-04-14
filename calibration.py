@@ -6,10 +6,10 @@ DEFAULT_CALIBRATION = {
     "s2_hmin": 60,
     "s2_hmax": 180,
     "s2_smin": 20,
-    "s2_smax": 150,
+    "s2_smax": 75,
     "s3_center": 55,
     "s3_min": 55,
-    "s3_max": 100,
+    "s3_max": 85,
     "s4_center": 90,
     "s4_range": 60,
     "pinch_threshold": 0.04,
@@ -17,13 +17,13 @@ DEFAULT_CALIBRATION = {
 }
 
 CALIBRATION_LIMITS = {
-    "s2_hmin": (0, 180),
-    "s2_hmax": (0, 180),
-    "s2_smin": (0, 180),
-    "s2_smax": (0, 180),
-    "s3_center": (0, 180),
-    "s3_min": (0, 180),
-    "s3_max": (0, 180),
+    "s2_hmin": (60, 60),
+    "s2_hmax": (180, 180),
+    "s2_smin": (20, 75),
+    "s2_smax": (20, 75),
+    "s3_center": (55, 55),
+    "s3_min": (55, 55),
+    "s3_max": (55, 85),
     "s4_center": (0, 180),
     "s4_range": (2, 180),
     "pinch_threshold": (0.0, 1.0),
@@ -94,17 +94,20 @@ def sanitize_calibration(values=None):
         for key in DEFAULT_CALIBRATION
     }
 
-    normalized["s2_hmin"], normalized["s2_hmax"] = _normalize_int_range(
-        normalized["s2_hmin"],
-        normalized["s2_hmax"],
-    )
+    normalized["s2_hmin"] = DEFAULT_CALIBRATION["s2_hmin"]
+    normalized["s2_hmax"] = DEFAULT_CALIBRATION["s2_hmax"]
     normalized["s2_smin"], normalized["s2_smax"] = _normalize_int_range(
         normalized["s2_smin"],
         normalized["s2_smax"],
+        absolute_min=DEFAULT_CALIBRATION["s2_smin"],
+        absolute_max=DEFAULT_CALIBRATION["s2_smax"],
     )
-    normalized["s3_center"], normalized["s3_max"] = _normalize_int_range(
+    normalized["s3_center"] = DEFAULT_CALIBRATION["s3_center"]
+    _, normalized["s3_max"] = _normalize_int_range(
         normalized["s3_center"],
         normalized["s3_max"],
+        absolute_min=DEFAULT_CALIBRATION["s3_center"],
+        absolute_max=DEFAULT_CALIBRATION["s3_max"],
     )
     normalized["s3_min"] = normalized["s3_center"]
 

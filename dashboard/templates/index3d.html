@@ -312,8 +312,10 @@
         };
         const DEFAULT_CALIBRATION = {{ default_calibration|tojson }};
         const INITIAL_CALIBRATION = {{ initial_calibration|tojson }};
+        const GRIPPER_OPEN = 10;
+        const GRIPPER_CLOSED = 100;
         const latestState = {
-            s1: 0,
+            s1: GRIPPER_OPEN,
             s2: DEFAULT_CALIBRATION.s2_smin,
             s3: DEFAULT_CALIBRATION.s3_center,
             s4: DEFAULT_CALIBRATION.s4_center
@@ -348,12 +350,7 @@
         function getElbowRanges() {
             const calibration = getCalibration();
             return {
-                human: calibrationRange(
-                    calibration.s2_hmin,
-                    calibration.s2_hmax,
-                    DEFAULT_CALIBRATION.s2_hmin,
-                    DEFAULT_CALIBRATION.s2_hmax
-                ),
+                human: { min: 60, max: 180 },
                 servo: calibrationRange(
                     calibration.s2_smin,
                     calibration.s2_smax,
@@ -569,7 +566,7 @@
 
         function updateArm(data) {
             const state = {
-                s1: Number(data?.s1 ?? 0),
+                s1: Number(data?.s1 ?? GRIPPER_OPEN),
                 s2: Number(data?.s2 ?? 0),
                 s3: Number(data?.s3 ?? 0),
                 s4: Number(data?.s4 ?? 0)
@@ -585,7 +582,13 @@
             upperArm.rotation.z = degToRad(humanShoulder - 90);
             forearm.rotation.z = THREE.MathUtils.degToRad(humanElbow - 180);
 
-            const gripOffset = THREE.MathUtils.clamp(state.s1 / 220, 0, 0.35);
+            const gripOffset = THREE.MathUtils.mapLinear(
+                THREE.MathUtils.clamp(state.s1, GRIPPER_OPEN, GRIPPER_CLOSED),
+                GRIPPER_OPEN,
+                GRIPPER_CLOSED,
+                0,
+                0.35
+            );
             leftFinger.position.x = -0.18 - gripOffset;
             rightFinger.position.x = 0.18 + gripOffset;
 

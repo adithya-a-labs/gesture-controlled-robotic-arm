@@ -315,7 +315,7 @@
             <section class="metric-grid">
                 <div class="card">
                     <span class="label">S1 Gripper</span>
-                    <div class="value" id="s1Value">0&deg;</div>
+                    <div class="value" id="s1Value">10&deg;</div>
                 </div>
                 <div class="card">
                     <span class="label">S2 Elbow Servo</span>
@@ -367,6 +367,8 @@
         };
         const DEFAULT_CALIBRATION = {{ default_calibration|tojson }};
         const INITIAL_CALIBRATION = {{ initial_calibration|tojson }};
+        const GRIPPER_OPEN = 10;
+        const GRIPPER_CLOSED = 100;
 
         window.calibration = { ...DEFAULT_CALIBRATION, ...INITIAL_CALIBRATION };
 
@@ -564,7 +566,7 @@
         const targetAngles = { base: 0, theta1: 0, theta2: 0 };
         const currentTarget = { x: L1 + L2, y: 0 };
         const latestState = {
-            s1: 0,
+            s1: GRIPPER_OPEN,
             s2: DEFAULT_CALIBRATION.s2_smin,
             s3: DEFAULT_CALIBRATION.s3_center,
             s4: DEFAULT_CALIBRATION.s4_center
@@ -613,12 +615,7 @@
         function getElbowRanges() {
             const calibration = getCalibration();
             return {
-                human: calibrationRange(
-                    calibration.s2_hmin,
-                    calibration.s2_hmax,
-                    DEFAULT_CALIBRATION.s2_hmin,
-                    DEFAULT_CALIBRATION.s2_hmax
-                ),
+                human: { min: 60, max: 180 },
                 servo: calibrationRange(
                     calibration.s2_smin,
                     calibration.s2_smax,
@@ -671,22 +668,6 @@
             );
         }
 
-        function solveIK(x, y) {
-            let d = Math.sqrt(x * x + y * y);
-            d = Math.min(d, L1 + L2 - 0.001);
-
-            let cosTheta2 = (d * d - L1 * L1 - L2 * L2) / (2 * L1 * L2);
-            cosTheta2 = THREE.MathUtils.clamp(cosTheta2, -1, 1);
-
-            let theta2 = Math.acos(cosTheta2);
-
-            let theta1 = Math.atan2(y, x) -
-                         Math.atan2(L2 * Math.sin(theta2),
-                                    L1 + L2 * Math.cos(theta2));
-
-            return { theta1, theta2 };
-        }
-
         function updateReadouts() {
             readouts.s1.innerHTML = `${latestState.s1.toFixed(1)}&deg;`;
             readouts.s2.innerHTML = `${latestState.s2.toFixed(1)}&deg;`;
@@ -716,13 +697,10 @@
             latestState.s3 = state.s3;
             latestState.s4 = state.s4;
 
-            let angle1 = THREE.MathUtils.degToRad(humanShoulder);
-            let angle2 = THREE.MathUtils.degToRad(humanElbow - 180);
-
-            let x = L1 * Math.cos(angle1) + L2 * Math.cos(angle1 + angle2);
-            let y = L1 * Math.sin(angle1) + L2 * Math.sin(angle1 + angle2);
-
-            let { theta1, theta2 } = solveIK(x, y);
+            const theta1 = THREE.MathUtils.degToRad(humanShoulder);
+            const theta2 = THREE.MathUtils.degToRad(humanElbow - 180);
+            const x = L1 * Math.cos(theta1) + L2 * Math.cos(theta1 + theta2);
+            const y = L1 * Math.sin(theta1) + L2 * Math.sin(theta1 + theta2);
 
             targetAngles.base = THREE.MathUtils.degToRad(state.s4 - getBaseCenter());
             targetAngles.theta1 = theta1;
@@ -737,7 +715,13 @@
                 -Math.sin(targetAngles.base) * x
             );
 
-            const fingerSpread = THREE.MathUtils.clamp(state.s1 / 240, 0, 0.3);
+            const fingerSpread = THREE.MathUtils.mapLinear(
+                THREE.MathUtils.clamp(state.s1, GRIPPER_OPEN, GRIPPER_CLOSED),
+                GRIPPER_OPEN,
+                GRIPPER_CLOSED,
+                0,
+                0.3
+            );
             leftFinger.position.y = 0.22 + fingerSpread;
             rightFinger.position.y = -0.22 - fingerSpread;
 

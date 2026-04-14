@@ -36,7 +36,7 @@ from vision.camera import Camera
 from vision.handtracking import HolisticTracker
 from vision.gesture_model import GestureModel
 
-USE_SERIAL = False  # Set True when ESP32 is connected
+USE_SERIAL = True  # Set True when ESP32 is connected
 
 latest_frame = None
 pose_result = None

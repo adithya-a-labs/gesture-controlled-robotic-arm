@@ -334,11 +334,13 @@
         const socket = io();
         const DEFAULT_CALIBRATION = {{ default_calibration|tojson }};
         const INITIAL_CALIBRATION = {{ initial_calibration|tojson }};
+        const GRIPPER_OPEN = 10;
+        const GRIPPER_CLOSED = 100;
 
         window.calibration = { ...DEFAULT_CALIBRATION, ...INITIAL_CALIBRATION };
 
         let state = {
-            s1: 0,
+            s1: GRIPPER_OPEN,
             s2: 90,
             s3: DEFAULT_CALIBRATION.s3_center,
             s4: DEFAULT_CALIBRATION.s4_center
@@ -348,27 +350,27 @@
             {
                 name: "APPROACH",
                 duration: 2300,
-                target: { s1: 0, s2: 110, s3: 70, s4: 60 }
+                target: { s1: GRIPPER_OPEN, s2: 110, s3: 70, s4: 60 }
             },
             {
                 name: "LOWER",
                 duration: 2200,
-                target: { s1: 0, s2: 130, s3: 90, s4: 60 }
+                target: { s1: GRIPPER_OPEN, s2: 130, s3: 90, s4: 60 }
             },
             {
                 name: "GRAB",
                 duration: 1800,
-                target: { s1: 180, s2: 130, s3: 90, s4: 60 }
+                target: { s1: GRIPPER_CLOSED, s2: 130, s3: 90, s4: 60 }
             },
             {
                 name: "LIFT",
                 duration: 2200,
-                target: { s1: 180, s2: 90, s3: 55, s4: 60 }
+                target: { s1: GRIPPER_CLOSED, s2: 90, s3: 55, s4: 60 }
             },
             {
                 name: "HOLD",
                 duration: 2200,
-                target: { s1: 180, s2: 90, s3: 55, s4: 60 }
+                target: { s1: GRIPPER_CLOSED, s2: 90, s3: 55, s4: 60 }
             }
         ];
 
@@ -578,12 +580,7 @@
         function getElbowRanges() {
             const calibration = getCalibration();
             return {
-                human: calibrationRange(
-                    calibration.s2_hmin,
-                    calibration.s2_hmax,
-                    DEFAULT_CALIBRATION.s2_hmin,
-                    DEFAULT_CALIBRATION.s2_hmax
-                ),
+                human: { min: 60, max: 180 },
                 servo: calibrationRange(
                     calibration.s2_smin,
                     calibration.s2_smax,
@@ -661,7 +658,13 @@
             shoulder.rotation.z = degToRad(humanShoulder);
             elbow.rotation.z = THREE.MathUtils.degToRad(humanElbow - 180);
 
-            const closeRatio = THREE.MathUtils.clamp(state.s1 / 180, 0, 1);
+            const closeRatio = THREE.MathUtils.mapLinear(
+                THREE.MathUtils.clamp(state.s1, GRIPPER_OPEN, GRIPPER_CLOSED),
+                GRIPPER_OPEN,
+                GRIPPER_CLOSED,
+                0,
+                1
+            );
             const fingerSpread = THREE.MathUtils.lerp(0.17, 0.045, closeRatio);
             leftFinger.position.z = fingerSpread;
             rightFinger.position.z = -fingerSpread;

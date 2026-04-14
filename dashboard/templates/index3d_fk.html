@@ -321,7 +321,7 @@
             <section class="metric-grid">
                 <div class="metric-card">
                     <span class="label">S1 Gripper</span>
-                    <div class="value" id="s1Value">0&deg;</div>
+                    <div class="value" id="s1Value">10&deg;</div>
                 </div>
                 <div class="metric-card">
                     <span class="label">S2 Elbow Servo</span>
@@ -371,8 +371,10 @@
         };
         const DEFAULT_CALIBRATION = {{ default_calibration|tojson }};
         const INITIAL_CALIBRATION = {{ initial_calibration|tojson }};
+        const GRIPPER_OPEN = 10;
+        const GRIPPER_CLOSED = 100;
         const latestState = {
-            s1: 0,
+            s1: GRIPPER_OPEN,
             s2: DEFAULT_CALIBRATION.s2_smin,
             s3: DEFAULT_CALIBRATION.s3_center,
             s4: DEFAULT_CALIBRATION.s4_center
@@ -407,12 +409,7 @@
         function getElbowRanges() {
             const calibration = getCalibration();
             return {
-                human: calibrationRange(
-                    calibration.s2_hmin,
-                    calibration.s2_hmax,
-                    DEFAULT_CALIBRATION.s2_hmin,
-                    DEFAULT_CALIBRATION.s2_hmax
-                ),
+                human: { min: 60, max: 180 },
                 servo: calibrationRange(
                     calibration.s2_smin,
                     calibration.s2_smax,
@@ -690,7 +687,13 @@
             elbow.position.y = L1;
             forearmMesh.position.y = L2 / 2;
 
-            const fingerSpread = THREE.MathUtils.clamp(state.s1 / 240, 0, 0.35);
+            const fingerSpread = THREE.MathUtils.mapLinear(
+                THREE.MathUtils.clamp(state.s1, GRIPPER_OPEN, GRIPPER_CLOSED),
+                GRIPPER_OPEN,
+                GRIPPER_CLOSED,
+                0,
+                0.35
+            );
             leftFinger.position.x = -0.14 - fingerSpread;
             rightFinger.position.x = 0.14 + fingerSpread;
 

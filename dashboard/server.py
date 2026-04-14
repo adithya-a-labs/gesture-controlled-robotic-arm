@@ -7,9 +7,11 @@ import calibration as calibration_store
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 model = None
+GRIPPER_OPEN = 10
+GRIPPER_CLOSED = 100
 
 current_state = {
-    "s1": 0,
+    "s1": GRIPPER_OPEN,
     "s2": calibration_store.DEFAULT_CALIBRATION["s2_smin"],
     "s3": calibration_store.DEFAULT_CALIBRATION["s3_center"],
     "s4": calibration_store.DEFAULT_CALIBRATION["s4_center"],
@@ -125,11 +127,11 @@ def toggle_gripper():
     if model is not None:
         model.manual_override = True
         model.manual_state = not bool(getattr(model, "manual_state", False))
-        current_state["s1"] = 100 if model.manual_state else 0
+        current_state["s1"] = GRIPPER_CLOSED if model.manual_state else GRIPPER_OPEN
     else:
         current_state["manual_override"] = True
         current_state["manual_state"] = not bool(current_state.get("manual_state", False))
-        current_state["s1"] = 100 if current_state["manual_state"] else 0
+        current_state["s1"] = GRIPPER_CLOSED if current_state["manual_state"] else GRIPPER_OPEN
 
     sync_gripper_state(model, emit_update=True)
 

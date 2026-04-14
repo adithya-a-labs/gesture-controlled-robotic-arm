@@ -11,7 +11,7 @@ int freq = 50;
 int resolution = 16;
 
 // ----------- ANGLE STORAGE -----------
-int s1 = 0;
+int s1 = 10;
 int s2 = 90;
 int s3 = 90;
 int s4 = 90;

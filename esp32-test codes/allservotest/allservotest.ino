@@ -7,10 +7,10 @@ Servo s3; // shoulder(GPIO 14)
 Servo s4; // base    (GPIO 27)
 
 // Pin definitions
-const int pin_s1 = 25;
-const int pin_s2 = 12;
-const int pin_s3 = 14;
-const int pin_s4 = 27;
+int pin_s4 = 27; // Base
+int pin_s3 = 14; // Shoulder
+int pin_s2 = 12; // Elbow
+int pin_s1 = 25; // Gripper
 
 void setup() {
   Serial.begin(115200);

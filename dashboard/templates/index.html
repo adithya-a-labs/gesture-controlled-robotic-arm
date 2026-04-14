@@ -155,7 +155,7 @@
         <div class="readout">
             <div class="card">
                 <div class="label">S1 Grip</div>
-                <div class="value" id="s1Value">0</div>
+                <div class="value" id="s1Value">10</div>
             </div>
             <div class="card">
                 <div class="label">S2 Elbow</div>
@@ -186,8 +186,10 @@
         };
         const DEFAULT_CALIBRATION = {{ default_calibration|tojson }};
         const INITIAL_CALIBRATION = {{ initial_calibration|tojson }};
+        const GRIPPER_OPEN = 10;
+        const GRIPPER_CLOSED = 100;
         const latestState = {
-            s1: 0,
+            s1: GRIPPER_OPEN,
             s2: DEFAULT_CALIBRATION.s2_smin,
             s3: DEFAULT_CALIBRATION.s3_center,
             s4: DEFAULT_CALIBRATION.s4_center
@@ -245,12 +247,7 @@
         function getElbowRanges() {
             const calibration = getCalibration();
             return {
-                human: calibrationRange(
-                    calibration.s2_hmin,
-                    calibration.s2_hmax,
-                    DEFAULT_CALIBRATION.s2_hmin,
-                    DEFAULT_CALIBRATION.s2_hmax
-                ),
+                human: { min: 60, max: 180 },
                 servo: calibrationRange(
                     calibration.s2_smin,
                     calibration.s2_smax,
@@ -359,7 +356,7 @@
         }
 
         function drawArm(state) {
-            latestState.s1 = Number(state?.s1 ?? 0);
+            latestState.s1 = Number(state?.s1 ?? GRIPPER_OPEN);
             latestState.s2 = Number(state?.s2 ?? 0);
             latestState.s3 = Number(state?.s3 ?? 0);
             latestState.s4 = Number(state?.s4 ?? 0);
@@ -401,7 +398,9 @@
             drawSegment(wristJoint.x, wristJoint.y, wristTip.x, wristTip.y, 8, "#3e8b8f");
 
             const gripColor = latestState.s1 > 90 ? "#d64550" : "#2e8b57";
-            const gripSpread = latestState.s1 > 90 ? 10 : 22;
+            const gripSpread = latestState.s1 > 90
+                ? 10
+                : mapLinear(latestState.s1, GRIPPER_OPEN, GRIPPER_CLOSED, 22, 10);
             const upperFingerAngle = handAngle + toRadians(gripSpread);
             const lowerFingerAngle = handAngle - toRadians(gripSpread);
             const fingerLength = 28;
