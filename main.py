@@ -66,7 +66,6 @@ def processing_loop(tracker, model):
 
         p_result, h_result = tracker.process(frame)
         angles = model.compute_servo_angles(p_result, h_result)
-
         pose_result = p_result
         hand_result = h_result
 
