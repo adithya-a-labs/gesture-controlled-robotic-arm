@@ -97,7 +97,7 @@ To ensure stable motion:
 
 | Dashboard | URL | Description |
 |----------|-----|------------|
-| 3D Digital Twin | `/3d` | Real-time visualization |
+| 3D Digital Twin | `/3d-fk` | Real-time visualization |
 | Calibration Panel | `/tune` | Live parameter tuning |
 | IK Dashboard | `/3d-ik` | Experimental IK system |
 
