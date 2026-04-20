@@ -239,8 +239,22 @@ Feel free to open an issue or start a discussion to share your ideas.
 
 For feedback, collaboration, or project-related discussions:
 
+### Adithya A 
 - GitHub: https://github.com/adithya-a-labs  
 - Email: adithya.a.builds@gmail.com
+
+### Rohan Skaria
+- GitHub: https://github.com/skariarohan
+- Email: rohsk12@gmail.com
+
+### Aryan Sajan Nair
+- GitHub: https://github.com/Ar27-25
+- Email: aryansajannair@gmail.com
+
+### Medicherla Satya Kalyana Bhairava Mukesh
+
+- GitHub: https://github.com/Satya2508
+- Email: n5517301mukhesh@gmail.com
 
 I’m open to suggestions, improvements, and interesting ideas around this project.
 
