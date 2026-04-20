@@ -174,3 +174,73 @@ This initializes:
 | Calibration Panel           | [http://localhost:5000/tune](http://localhost:5000/tune)   | Live tuning of joint parameters            |
 | IK Dashboard (Experimental) | [http://localhost:5000/3d-ik](http://localhost:5000/3d-ik) | Target-based arm control (experimental)    |
 
+## 🚀 Future Work
+
+### 🔹 Vision-Language-Action (VLA) Integration
+- Enable task-level control using natural language commands  
+- Combine scene understanding with action planning  
+- Transition from teleoperation to autonomous execution  
+
+---
+
+### 🔹 Full Inverse Kinematics
+- Implement complete 3D IK for precise end-effector positioning  
+- Improve accuracy for manipulation tasks  
+
+---
+
+### 🔹 Depth Estimation
+- Integrate depth sensing for better spatial awareness  
+- Enable accurate interaction with objects in 3D space  
+
+---
+
+### 🔹 Object Detection & Tracking
+- Incorporate real-time object detection models  
+- Enable object-specific manipulation and tracking  
+
+---
+
+### 🔹 Autonomous Pick-and-Place
+- Combine vision, IK, and control for automated tasks  
+- Reduce reliance on manual gesture input  
+
+---
+
+### 🔹 Reinforcement Learning for Control
+- Learn optimized motion policies  
+- Improve smoothness and efficiency over time  
+
+---
+
+### 🔹 Safety & Constraint Modeling
+- Add collision detection and joint safety limits  
+- Prevent unsafe or damaging movements  
+
+---
+
+### 🔹 ROS Integration
+- Integrate with ROS for scalability and modularity  
+- Enable interoperability with other robotic systems
+
+## 💡 Suggestions & Feedback
+
+This project is designed as an evolving robotics platform. Feedback and suggestions are welcome, especially in areas such as:
+
+- Control system improvements (smoothing, stability, constraints)  
+- Calibration and mapping accuracy  
+- Computer vision robustness  
+- UI/UX enhancements for dashboards  
+- Advanced features (IK, autonomy, VLAs etc.)  
+
+Feel free to open an issue or start a discussion to share your ideas.
+
+## 📬 Contact
+
+For feedback, collaboration, or project-related discussions:
+
+- GitHub: https://github.com/adithya-a-labs  
+- Email: adithya.a.builds@gmail.com
+
+I’m open to suggestions, improvements, and interesting ideas around this project.
+
