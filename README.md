@@ -2,6 +2,8 @@
 
 A real-time vision-based robotic arm system that translates human hand gestures into physical robot motion, with a synchronized 3D digital twin, live calibration system, and experimental inverse kinematics pipeline.
 
+> ⚙️ **Quick Start:** Run `python main.py` and open `/3d-fk` or `/tune` in your browser.
+
 ---
 
 ## 📌 Overview
