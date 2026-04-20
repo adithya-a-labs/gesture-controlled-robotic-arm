@@ -123,3 +123,54 @@ source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+```
+
+## 🔌 ESP32 & Servo Wiring
+
+Each servo requires:
+
+- VCC (Red) → External 5V power supply  
+- GND (Brown/Black) → Common ground  
+- Signal (Yellow/Orange) → ESP32 GPIO pin  
+
+### ⚠️ Important
+
+- Do NOT power servos directly from the ESP32  
+- Use an external 5V power supply (minimum 2A)  
+- Ensure all grounds are connected together  
+
+### Pin Mapping
+
+| Servo | Function | ESP32 Pin |
+|------|--------|-----------|
+| S1 | Gripper | GPIO 25 |
+| S2 | Elbow | GPIO 12 |
+| S3 | Shoulder | GPIO 14 |
+| S4 | Base | GPIO 27 |
+
+## ▶️ Running the System
+
+The entire system is operated through a single entry point.
+
+---
+### Step 0: Connect the wires properly (refer pin mapping)
+### Step 1: Start the application
+
+```bash
+python main.py
+```
+This initializes:
+-Camera input (OpenCV + MediaPipe)
+-Gesture processing pipeline
+-Calibration system
+-Flask + SocketIO server for dashboards
+-Serial communication with ESP32 (if connected)
+
+### Step 2: Open dashboards in your browser
+
+| Dashboard                   | URL                                                        | Description                                |
+| --------------------------- | ---------------------------------------------------------- | ------------------------------------------ |
+| 3D Digital Twin             | [http://localhost:5000/3d](http://localhost:5000/3d-fk)    | Real-time visualization of the robotic arm |
+| Calibration Panel           | [http://localhost:5000/tune](http://localhost:5000/tune)   | Live tuning of joint parameters            |
+| IK Dashboard (Experimental) | [http://localhost:5000/3d-ik](http://localhost:5000/3d-ik) | Target-based arm control (experimental)    |
+
