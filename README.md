@@ -170,7 +170,7 @@ This initializes:
 
 | Dashboard                   | URL                                                        | Description                                |
 | --------------------------- | ---------------------------------------------------------- | ------------------------------------------ |
-| 3D Digital Twin             | [http://localhost:5000/3d](http://localhost:5000/3d-fk)    | Real-time visualization of the robotic arm |
+| 3D Digital Twin             | [http://localhost:5000/3d-fk](http://localhost:5000/3d-fk)    | Real-time visualization of the robotic arm |
 | Calibration Panel           | [http://localhost:5000/tune](http://localhost:5000/tune)   | Live tuning of joint parameters            |
 | IK Dashboard (Experimental) | [http://localhost:5000/3d-ik](http://localhost:5000/3d-ik) | Target-based arm control (experimental)    |
 
