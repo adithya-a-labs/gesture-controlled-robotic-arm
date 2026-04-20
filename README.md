@@ -106,6 +106,18 @@ To ensure stable motion:
 ## ⚙️ Installation
 
 ```bash
+# Clone repo
 git clone https://github.com/adithya-a-labs/gesture-controlled-robotic-arm.git
 cd gesture-controlled-robotic-arm
+
+# Create virtual environment
+python -m venv venv
+
+# Activate (Windows)
+venv\Scripts\activate
+
+# Activate (Mac/Linux)
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
