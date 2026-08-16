@@ -22,6 +22,7 @@ This repository documents a working research prototype, not an autonomous robot.
 <summary><strong>Navigate this technical overview</strong></summary>
 
 - [Project status](#project-status)
+- [System at a glance](#system-at-a-glance)
 - [System architecture](#system-architecture)
 - [Runtime software architecture](#runtime-software-architecture)
 - [Vision and geometric control](#vision-and-geometric-control)
@@ -46,6 +47,48 @@ This repository documents a working research prototype, not an autonomous robot.
 | **Implemented** | Webcam acquisition; MediaPipe pose and single-hand tracking; right-arm, torso, and pinch geometry; live calibration; temporal filtering; rate limiting; serial commands; direct ESP32 PWM control; 2D/3D command-state dashboards; manual/automatic gripper modes; Fusion 360 archives |
 | **Experimental** | Alternative vector-based shoulder mapping; planar two-link IK prototypes; browser-only target IK visualizer; telemetry-derived IK diagnostic view; scripted pick-and-place visualization |
 | **Planned / research direction** | Measured latency and accuracy evaluation; feedback sensing; physical link-parameter identification; 3D IK; collision-aware trajectories; depth and object perception; visual servoing; shared autonomy; imitation learning; VLA-based task planning; ROS/ROS 2 integration |
+
+<details>
+<summary><strong>Capability-by-capability boundary</strong></summary>
+
+| Capability | Status | Implementation boundary |
+| --- | --- | --- |
+| Webcam perception | **Implemented** | OpenCV camera index 0, mirrored frames |
+| Human pose tracking | **Implemented** | MediaPipe PoseLandmarker |
+| Hand/pinch tracking | **Implemented** | one MediaPipe hand plus deterministic distance thresholds |
+| Calibrated joint mapping | **Implemented** | in-memory calibration parameters and clipped interpolation |
+| Temporal smoothing and step limits | **Implemented** | host-side S2/S3 adaptive smoothing and S2/S3/S4 per-update limits |
+| ESP32 actuation | **Implemented** | newline CSV parsing and direct LEDC output |
+| 2D/3D command visualization | **Implemented** | Flask-SocketIO state broadcast and browser renderers |
+| Live calibration dashboard | **Implemented** | process-local update/save/restore/reset |
+| Forward-kinematic visualization | **Implemented** | simplified fixed-link Three.js chain |
+| Planar inverse kinematics | **Experimental** | camera overlay and browser-only solver prototypes |
+| Physical joint-position feedback | **Not implemented** | no encoder/joint-sensor state reaches the host |
+| Depth-aware control | **Planned** | current landmarks are monocular 2D observations |
+| Autonomous object manipulation | **Planned** | the pick-and-place page is a scripted visualization |
+| ROS / ROS 2 | **Research direction** | no ROS integration exists in this repository |
+| VLA or learned action policy | **Research direction** | current learned component is landmark perception only |
+
+</details>
+
+## System at a glance
+
+| Property | Current system |
+| --- | --- |
+| Interaction mode | human gesture teleoperation |
+| Sensing | one monocular RGB webcam |
+| Perception | MediaPipe pose plus at most one hand |
+| Human geometry used | right shoulder/elbow/wrist, left/right hips, thumb/index landmarks |
+| Actuation | three arm joints plus one gripper channel |
+| Host controller | Python geometry, calibration, filtering, bounds, state publication |
+| Embedded controller | ESP32 serial parser and four-channel LEDC PWM generator |
+| Communication interface | USB serial, 115200 baud, newline-terminated integer CSV |
+| Host command representation | integer servo targets in S1, S2, S3, S4 order |
+| Embedded packet order | S4, S3, S2, S1 |
+| Runtime class | best-effort **soft real-time** prototype; no deterministic deadline guarantee |
+| Physical control topology | commanded-position output; actual joint state is not measured by the host |
+| Visualization | 2D/Three.js view of commanded state, not independently sensed physical state |
+| IK | planar and experimental; disconnected from production actuation |
 
 ## Why this problem matters
 
@@ -72,28 +115,43 @@ The prototype is useful as a compact study in human–robot interaction, calibra
 
 ~~~mermaid
 flowchart LR
-    H["Human upper-body motion<br/>and pinch intent"] --> C["Webcam<br/>OpenCV camera 0"]
-    C --> P["MediaPipe Tasks<br/>PoseLandmarker + HandLandmarker"]
-    P --> G["2D geometry<br/>right arm, hip center, pinch distance"]
-    G --> K["Calibration + constraints<br/>human space → servo space"]
-    K --> F["Signal conditioning<br/>fallback, smoothing, rate limits"]
-    F --> S["Command state<br/>S1, S2, S3, S4"]
+    H["Human upper-body motion<br/>and pinch intent"]
 
-    S --> T["CSV over USB serial<br/>S4,S3,S2,S1 at 115200 baud"]
-    T --> E["ESP32 LEDC controller<br/>50 Hz, 16-bit PWM"]
-    E --> R["Physical mechanism<br/>base + shoulder + elbow + gripper"]
+    subgraph HOST [Host computer - high-level controller]
+        C["Webcam interface<br/>OpenCV camera 0"]
+        P["MediaPipe Tasks<br/>PoseLandmarker + HandLandmarker"]
+        G["2D geometry<br/>right arm, hip center, pinch distance"]
+        K["Calibration transfer<br/>human space → servo space"]
+        F["Signal conditioning<br/>fallback, smoothing, rate limits"]
+        S["Command state<br/>S1, S2, S3, S4"]
+        T["Serial interface<br/>CSV bytes at 115200 baud"]
+        W["Flask-SocketIO<br/>state and calibration events"]
+        D["2D telemetry +<br/>Three.js visualizations"]
+        Q["Live calibration and<br/>gripper controls"]
+    end
 
-    S --> W["Flask-SocketIO<br/>update event"]
-    W --> D["2D telemetry +<br/>Three.js visualizations"]
-    W <--> Q["Live calibration and<br/>gripper controls"]
+    subgraph MCU [ESP32 - embedded controller]
+        E["CSV parser<br/>S4,S3,S2,S1"]
+        L["LEDC PWM generation<br/>50 Hz, 16 bit"]
+    end
+
+    subgraph PLANT [Physical plant]
+        A["Servo actuators"]
+        R["Mechanical arm<br/>base + shoulder + elbow + gripper"]
+    end
+
+    H --> C --> P --> G --> K --> F --> S --> T
+    T -->|USB serial| E --> L --> A --> R
+    S --> W --> D
+    W <--> Q
 
     classDef perception fill:#123b4a,stroke:#57c7d4,color:#fff
     classDef control fill:#49351c,stroke:#e8ad55,color:#fff
     classDef physical fill:#40252b,stroke:#df7180,color:#fff
     classDef web fill:#243650,stroke:#7da7e8,color:#fff
     class P,G perception
-    class K,F,S control
-    class T,E,R physical
+    class K,F,S,T control
+    class E,L,A,R physical
     class W,D,Q web
 ~~~
 
@@ -124,11 +182,36 @@ The order changes at the transport boundary:
 
 Example packet: <code>90,60,45,10\n</code>.
 
+### Coordinate and representation spaces
+
+The pipeline does not carry one universal “pose.” Each boundary changes both units and meaning:
+
+| Space | Representation in this project | Conversion |
+| --- | --- | --- |
+| Physical human space | operator's actual body configuration | camera projection |
+| Image space | mirrored BGR/RGB pixels | MediaPipe inference |
+| Normalized landmark space | dimensionless \(x,y\) coordinates and pose visibility | deterministic geometry |
+| Human geometric state | elbow/shoulder angles, hip-center offset, pinch distance | calibration transfer |
+| Robot joint target space | bounded S1–S4 desired targets | filtering and step limiting |
+| Servo command space | integer S1–S4 commanded angles | CSV serialization |
+| Embedded electrical space | 16-bit LEDC duty counts | 50 Hz PWM |
+| Physical robot space | servo torque and mechanism motion | not independently measured |
+
+For the experimental IK path, a planar Cartesian shoulder-to-wrist target is converted into a robot joint configuration. In robotics notation, forward kinematics maps joint space to task space, while IK attempts the reverse:
+
+$$
+\mathbf{x}=f(\boldsymbol{\theta}),
+\qquad
+\boldsymbol{\theta}\in f^{-1}(\mathbf{x})
+$$
+
+The set notation on \(f^{-1}\) matters: an IK target may have multiple solutions, no reachable solution, or configurations excluded by joint limits. The current two-link experiment selects one analytical branch and clamps target distance; it does not yet solve full 3D constrained IK.
+
 ---
 
 ## Runtime software architecture
 
-<code>main.py</code> is the implemented end-to-end entrypoint. It constructs the camera, MediaPipe tracker, gesture model, optional serial connection, and dashboard server, then coordinates three concurrent activities:
+[<code>main.py</code>](main.py) is the implemented end-to-end entrypoint. It constructs the camera, MediaPipe tracker, gesture model, optional serial connection, and dashboard server, then coordinates three concurrent activities:
 
 - a camera thread continuously replaces a shared latest frame;
 - a processing thread copies that frame, runs both landmarkers, computes servo targets, publishes dashboard state, and optionally writes serial data;
@@ -166,7 +249,26 @@ sequenceDiagram
     V->>E: close serial port
 ~~~
 
-The loops are not scheduled at explicit fixed rates. Camera capture, MediaPipe inference, Socket.IO emission, serial output, and browser rendering proceed at their own available rates. This is a practical prototype architecture, but it also creates a useful future research problem: instrumenting and controlling a multi-rate perception–action system.
+Separating acquisition from perception prevents the expensive landmark pipeline from directly owning every camera read. It also allows both the display and controller to consume the most recent available frame. The tradeoff is that an unprocessed frame may be overwritten, and there is no backpressure or frame-to-command provenance.
+
+The loops are not scheduled at explicit fixed rates. Camera capture, MediaPipe inference, Socket.IO emission, serial output, and browser rendering proceed at their own available rates. The architecture is therefore **soft real-time / best effort**, not deterministic hard real-time: it aims to remain interactive but declares no deadline, worst-case execution time, or guaranteed update frequency.
+
+### End-to-end latency chain
+
+Response latency is the sum of several independently variable stages:
+
+$$
+T_{total} =
+T_{capture} +
+T_{inference} +
+T_{geometry} +
+T_{filter} +
+T_{serial} +
+T_{MCU} +
+T_{servo}
+$$
+
+Filtering contributes intentional response lag, while camera exposure, inference scheduling, USB buffering, and mechanical servo response contribute system latency. The current application does not timestamp these boundaries, so no numerical latency claim is made. Instrumenting frame capture, inference completion, command generation, serial write, firmware receipt, and measured motion onset is a priority evaluation experiment.
 
 ---
 
@@ -174,7 +276,7 @@ The loops are not scheduled at explicit fixed rates. Camera capture, MediaPipe i
 
 ### Acquisition and inference
 
-<code>vision/camera.py</code> opens OpenCV camera index <code>0</code> and mirrors each frame horizontally. <code>vision/handtracking.py</code> creates two MediaPipe Tasks models in video mode:
+[<code>vision/camera.py</code>](vision/camera.py) opens OpenCV camera index <code>0</code> and mirrors each frame horizontally. [<code>vision/handtracking.py</code>](vision/handtracking.py) creates two MediaPipe Tasks models in video mode:
 
 - <code>pose_landmarker.task</code> for body pose;
 - <code>hand_landmarker.task</code> for at most one hand.
@@ -225,11 +327,50 @@ The control path treats perception output defensively:
 
 This fallback strategy favors continuity. It does not estimate uncertainty or impose a timeout that returns the arm to a safe pose after prolonged tracking loss; that remains a safety and control improvement.
 
+### Defensive control design
+
+[<code>vision/gesture_model.py</code>](vision/gesture_model.py) treats degraded perception as an expected operating condition:
+
+~~~text
+new observation
+  ├─ valid and finite
+  │    → geometry → map → clamp → filter → step-limit → command
+  └─ missing / low visibility / degenerate
+       → reuse cached point or retain previous bounded command
+~~~
+
+The defensive layers are deliberately redundant:
+
+- coordinate and intermediate values are checked with <code>np.isfinite</code>;
+- point shape and angle denominators are validated before trigonometry;
+- the angle cosine is clipped to \([-1,1]\) before <code>arccos</code>;
+- pose visibility below 0.5 falls back to the previous valid point;
+- calibrated and final servo values are clipped and rounded;
+- a model-level exception retains the prior output rather than emitting an arbitrary value;
+- startup serial failure falls back to hardware-disabled operation;
+- serial write exceptions are reported without crashing the processing thread.
+
+“Retain previous” is predictable but not automatically safe forever: a bounded command can become stale during a long occlusion. The implementation has no dropout-duration timer, commanded park pose, firmware watchdog, or independently verified actuator state.
+
 ---
 
 ## Human-to-robot calibration
 
-Human joint angle is not servo angle. The mechanism has different ranges, neutral positions, linkage geometry, mounting directions, and safe travel. In this repository, calibration is part of the control algorithm rather than a cosmetic configuration layer.
+Human joint angle is not servo angle. The mechanism has different ranges, neutral positions, linkage geometry, mounting directions, and safe travel. In this repository, calibration is part of the control algorithm rather than a cosmetic configuration layer. It is a limited, manually tuned form of interface-model identification:
+
+$$
+u_{servo}=f(x_{human},C)
+$$
+
+Here \(x_{human}\) is an image-derived human measurement, \(C\) is the active calibration snapshot, and \(u_{servo}\) is the desired actuator target. For a non-reversed linear interval, the conceptual interpolation is:
+
+$$
+y = y_{min} +
+\frac{x-x_{min}}{x_{max}-x_{min}}
+(y_{max}-y_{min})
+$$
+
+The implementation uses NumPy interpolation plus joint-specific clipping. Servo orientation and direction are encoded by the selected source/target endpoints; there is no general per-joint inversion or offset flag in the primary model.
 
 ~~~mermaid
 flowchart LR
@@ -243,7 +384,7 @@ flowchart LR
 
 ### Current calibration contract
 
-Defaults come from <code>calibration.py</code>:
+Defaults come from [<code>calibration.py</code>](calibration.py):
 
 | Parameter | Default | Runtime meaning | Live tuning |
 | --- | ---: | --- | --- |
@@ -280,6 +421,8 @@ $$
 
 All servo intervals are additionally constrained to 0°–180°.
 
+Although <code>s2_hmin</code> and <code>s2_hmax</code> are represented in the calibration store, the sanitizer and tuning UI fix them at 60° and 180°, and the primary gesture model uses that same interval directly. They are documented parameters, not currently free calibration degrees of freedom.
+
 ### Live tuning workflow
 
 Open <http://localhost:5000/tune> while <code>main.py</code> is running. Slider changes emit <code>update_calibration</code>; the server sanitizes them under a re-entrant lock and broadcasts <code>calibration_update</code> to connected views. The gesture model reads a fresh calibration snapshot on every processing pass.
@@ -314,6 +457,21 @@ The smoothing factor is adaptive:
 | > 10° | 0.7 | faster response to deliberate motion |
 
 After smoothing, both joints are limited to a maximum 5° command step per processing update.
+
+The host implements rate limiting as:
+
+$$
+u_t =
+u_{t-1} +
+\operatorname{clip}
+\left(
+u_t^*-u_{t-1},
+-\Delta_{max},
++\Delta_{max}
+\right)
+$$
+
+where \(u_t^*\) is the smoothed target. In the primary path, \(\Delta_{max}=5^\circ\) for S2/S3 and \(3^\circ\) for S4. These limits are **per processing update**, not degrees per second.
 
 Base control uses fixed \(\alpha=0.3\), a 0.05 normalized-coordinate center deadband, and a maximum 3° step per processing update. The gripper is a binary 10°/100° command and is stabilized by stateful hysteresis rather than numerical smoothing.
 
@@ -363,7 +521,24 @@ The repository controls **three positioning joints plus one gripper actuator**. 
 | S2 | elbow flexion/extension | right elbow angle | 20°–75° |
 | S1 | gripper open/close | thumb–index pinch latch | 10° open / 100° closed |
 
+The nominal servo command domain is \(0^\circ \le u \le 180^\circ\), which is the interval used by the host's generic final clip and the firmware's angle-to-duty mapping. That electrical command domain is not the same as the mechanically useful or safe domain. The host restricts S2, S3, and S4 to the narrower calibrated intervals above; S1 is restricted to its two endpoint commands. The production firmware itself does not enforce either domain.
+
 The <code>cad-model/</code> directory contains Autodesk Fusion 360 <code>.f3z</code> archives for the arm assembly, gripper, and total assembly, plus a [static Autodesk viewer link](https://a360.co/4sxEt1Y). Archive metadata references component designs named MG996R and MG90S, but the repository does not provide a definitive as-built bill of materials. Servo model, torque, supply, link length, payload, mass, and verified mechanical travel should therefore be treated as undocumented until measured and recorded.
+
+### System assumptions and constraints
+
+| Assumption / constraint | Consequence |
+| --- | --- |
+| one monocular camera | no independent metric depth; perspective affects geometry |
+| right-arm pose landmarks | S2/S3 control follows landmarks 12, 14, and 16 |
+| at most one detected hand | gripper intent comes from the first returned hand |
+| normalized image coordinates | torso and pinch thresholds depend on framing and camera distance |
+| no host-visible joint encoders | commanded and actual robot configurations may differ |
+| no force, torque, or collision sensing | contact and overload are not detected by the control software |
+| per-update filtering and limits | effective response depends on processing throughput |
+| process-local calibration | saved calibration is lost when Python exits |
+| trusted serial sender | embedded firmware does not clamp parsed angles |
+| simplified dashboard geometry | rendered link units are not identified physical dimensions |
 
 ### ESP32 hardware boundary
 
@@ -378,7 +553,7 @@ flowchart LR
     L --> Gr["GPIO 25<br/>S1 gripper"]
 ~~~
 
-The production firmware is <code>controller code/esp32-control-code/esp32-control-code.ino</code>. It:
+The production firmware is [<code>controller code/esp32-control-code/esp32-control-code.ino</code>](controller%20code/esp32-control-code/esp32-control-code.ino). It:
 
 - starts serial at 115200 baud;
 - attaches four ESP32 LEDC outputs at 50 Hz with 16-bit resolution;
@@ -399,13 +574,16 @@ The server publishes the post-conditioned command state to every connected brows
 
 ~~~mermaid
 flowchart TD
-    C["Conditioned command state<br/>S1, S2, S3, S4"] --> H["Serial branch"]
+    P["Estimated human state<br/>landmarks + derived geometry"] --> D["Desired robot state<br/>calibrated servo targets"]
+    D --> C["Commanded robot state<br/>conditioned S1, S2, S3, S4"]
+    C --> H["Serial branch"]
     H --> E["ESP32"] --> R["Physical robot"]
+    R --> A["Actual physical joint state<br/>not measured by host"]
     C --> W["Socket.IO update event"]
-    W --> T["2D dashboard"]
-    W --> F["Three.js FK view"]
-    W --> I["IK-oriented diagnostics"]
-    Q["Calibration updates"] --> C
+    W --> T["2D dashboard<br/>command state"]
+    W --> F["Three.js FK view<br/>command state"]
+    W --> I["IK-oriented diagnostics<br/>command state"]
+    Q["Calibration updates"] --> D
     Q --> T
     Q --> F
     Q --> I
@@ -417,11 +595,26 @@ This fork makes internal control state observable without needing the physical a
 - serial/electrical/mechanical errors, which can appear only on the physical branch;
 - calibration inconsistencies, which update across all connected dashboards.
 
-Strictly, the browser model is a **command-state digital twin**, not a feedback-validated digital twin: there are no encoders or other joint sensors reporting actual physical pose.
+Strictly, the browser model is a **command-state digital twin**, not a feedback-validated digital twin: there are no encoders or other joint sensors reporting actual physical pose. The host-side perception/control path is stateful—previous landmarks and commands influence the next output—but the physical position path is open-loop from the host's perspective:
+
+~~~text
+commanded position → ESP32 PWM → servo / mechanism
+                                      ↓
+                         actual position is unobserved
+~~~
+
+The host therefore knows what it requested, not what the mechanism achieved. Future joint sensing could close this loop by returning measured position, computing target error, and correcting subsequent commands.
+
+This state distinction provides a practical debugging rule:
+
+- if the visualization receives the wrong command, inspect perception, geometry, calibration, filtering, and command generation;
+- if the visualization is correct but the mechanism is wrong, inspect serial transport, parsing, GPIO assignment, servo orientation, power integrity, linkage, and loading.
 
 ### FK representation
 
 The <code>/3d-fk</code> page maps servo values back into display-space shoulder and elbow angles, then applies a hierarchical Three.js transform:
+
+Forward kinematics evaluates end-effector state from a joint configuration, \(\mathbf{x}=f(\boldsymbol{\theta})\). Inverse kinematics begins with a desired end-effector state and searches for an admissible joint configuration, \(\boldsymbol{\theta}\in f^{-1}(\mathbf{x})\). FK is single-valued for a defined mechanism; IK can have multiple branches, unreachable targets, singular configurations, and solutions excluded by mechanical joint limits.
 
 ~~~text
 base frame (S4 yaw)
@@ -446,7 +639,7 @@ The values \(L_1=L_2=3\) are visualization units defined in the dashboard, not v
 
 ### Dashboard inventory
 
-All standard routes are served by <code>dashboard/server.py</code>:
+All standard routes are served by [<code>dashboard/server.py</code>](dashboard/server.py):
 
 | URL | Status | Data / interaction | Engineering use |
 | --- | --- | --- | --- |
@@ -466,7 +659,7 @@ Running <code>main_vector_experimental.py</code> adds <code>/3d-vector</code>, a
 
 ### Experimental: planar inverse kinematics
 
-<code>main_ik_experimental.py</code> is a separate, deliberately experimental entrypoint. It:
+[<code>main_ik_experimental.py</code>](main_ik_experimental.py) is a separate, deliberately experimental entrypoint. It:
 
 1. tracks right shoulder, elbow, and wrist with <code>pose_landmarker_full.task</code>;
 2. treats the shoulder-to-wrist displacement in normalized image coordinates as a planar target;
@@ -487,11 +680,11 @@ flowchart LR
 
 The solver clamps unreachable distances to avoid invalid <code>acos</code> inputs. It remains a monocular 2D experiment: the tracked elbow is displayed but not used by the solver, link lengths are nominal image-space values, branch selection is fixed, and the entrypoint does not send serial commands or publish dashboard state.
 
-The related <code>ik_pipeline/semi_ik.py</code> and browser <code>/3d-semi-ik</code> use the same planar analytical structure with \(L_1=L_2=3\) arbitrary units. These prototypes establish the mathematics and UI needed for target-based control, but production IK still requires identified link dimensions, coordinate-frame calibration, joint-limit-aware branch selection, temporal control, and hardware validation.
+The related [<code>ik_pipeline/ik_model.py</code>](ik_pipeline/ik_model.py), [<code>ik_pipeline/semi_ik.py</code>](ik_pipeline/semi_ik.py), and browser <code>/3d-semi-ik</code> use the same planar analytical structure with nominal link units. These prototypes establish the mathematics and UI needed for target-based control, but production IK still requires identified link dimensions, coordinate-frame calibration, joint-limit-aware branch selection, temporal control, and hardware validation.
 
 ### Experimental: vector shoulder mapping
 
-<code>main_vector_experimental.py</code> replaces the primary shoulder angle with a blend of:
+[<code>main_vector_experimental.py</code>](main_vector_experimental.py) replaces the primary shoulder angle with a blend of:
 
 - upper-arm direction from <code>atan2</code>; and
 - vertical shoulder-to-elbow displacement.
@@ -674,37 +867,42 @@ Replace <code>COM5</code> with the port assigned to the ESP32 on your system. Po
 
 ## Engineering challenges and design decisions
 
-| Challenge | Current design response | Remaining limitation |
-| --- | --- | --- |
-| Landmark jitter becomes actuator jitter | exponential smoothing and per-update step limits | limits are not time-normalized or quantitatively tuned |
-| Human and robot kinematics differ | explicit per-joint range mapping and live calibration | no camera-to-robot extrinsic calibration or identified physical model |
-| Pose landmarks disappear | visibility gate, previous-point cache, previous-command fallback | no dropout timer or commanded safe state |
-| Pinch distance oscillates | separate close/release thresholds and a latched state | distance is not scale-normalized |
-| Hardware slows and raises the risk of debugging | <code>USE_SERIAL = False</code>, automatic serial fallback, visual state branch | the primary entrypoint still requires camera and GUI |
-| Internal state is difficult to inspect | Socket.IO telemetry, 2D/3D views, FK readouts, live tuning | view represents commands, not measured joint pose |
-| Components operate at different rates | latest-frame shared-state architecture | no bounded queues, timestamps, latency budget, or deterministic scheduler |
-| Bad numerical geometry can propagate | finite checks, cosine clipping, range clipping, broad last-output fallback | broad exception handling can hide the cause of failures |
-| Host-side safety can be bypassed | calibrated Python bounds | firmware lacks bounds, watchdog, and safe timeout |
+| Failure mode | Likely cause | Existing mitigation | Remaining limitation / tradeoff |
+| --- | --- | --- | --- |
+| Landmark jitter becomes actuator jitter | frame-to-frame perception noise | adaptive smoothing and per-update step limits | filtering adds latency; limits are not time-normalized |
+| Pose landmark dropout | occlusion or low visibility | 0.5 visibility gate, cached points, previous-command fallback | cached state can become stale; no dropout timer or park pose |
+| Sudden target jump | tracking discontinuity or rapid operator motion | 5° S2/S3 and 3° S4 maximum update steps | fast intended motion can lag; effective slew depends on update rate |
+| Gripper chatter | pinch distance near a decision boundary | separate close/release thresholds and latched state | absolute normalized-image thresholds depend on scale |
+| Incorrect joint response | human/robot geometric and mounting mismatch | explicit per-joint mapping and live calibration | requires per-build tuning; profiles are not persistent |
+| Monocular ambiguity | no independent depth measurement | planar geometry and deliberately restricted servo ranges | out-of-plane motion cannot be reconstructed reliably |
+| Serial unavailable at startup | disconnected ESP32, wrong port, or port access failure | automatic hardware-disabled fallback | vision continues, but no physical actuation occurs |
+| Serial write failure during operation | link or device failure | exception is caught and reported | no reconnect state machine or automatic safe stop |
+| Command differs from physical motion | load, power, wiring, orientation, or mechanics | command-state visualization isolates upstream intent | no joint sensing to measure or correct physical error |
+| Invalid numerical geometry | missing coordinates, NaN, or degenerate vectors | finite checks, cosine clip, bounds, last-output fallback | broad exception handling can hide root causes |
+| Unsynchronized multi-rate state | independent camera, inference, web, and serial rates | latest-frame shared-state architecture | no queue, timestamps, latency budget, or command provenance |
+| Unsafe external serial packet | firmware trusts parsed integers | production host emits calibrated bounded values | firmware lacks bounds, watchdog, and timeout |
 
 ---
 
 ## Engineering and research learnings
 
-1. **Perception output is not actuator-ready.** Landmark coordinates are observations with noise and missing data; a physical command needs validation, state, filtering, and limits.
+1. **Perception is measurement, not truth.** Landmark coordinates are estimates with noise, occlusion, projection error, and missing data; they need validation before they can support control.
 
-2. **Calibration is control logic.** A correct human joint estimate can still produce unusable robot motion unless input ranges, servo neutral positions, mounting directions, and mechanical travel are reconciled.
+2. **Calibration is model identification and control logic.** The live parameters approximate the relationship between human-space measurements and useful actuator space. A correct human angle can still produce unusable motion if neutral positions, mounting, and travel are not reconciled.
 
-3. **Stability and responsiveness are coupled.** The adaptive smoothing rule makes deliberate large changes more responsive while filtering small changes more strongly, but its behavior must eventually be evaluated against measured latency and variance.
+3. **Human imitation is a transfer problem, not angle copying.** The human and robot have different linkages and workspaces, so the controller deliberately compresses human elbow and shoulder motion into narrower servo intervals.
 
-4. **Human imitation is a mapping problem, not angle copying.** The current system deliberately compresses human elbow and shoulder motion into much narrower servo intervals.
+4. **Filtering trades noise for latency.** Higher \(\alpha\) follows a target faster; lower \(\alpha\) suppresses more noise. There is no universally optimal setting, and the adaptive rule should be evaluated against measured command variance and latency.
 
-5. **Physical AI software must be defensive.** NaNs, degenerate vectors, low-visibility points, camera dropouts, and serial failure are normal system conditions, not edge cases.
+5. **Robot commands are not robot state.** Without joint sensing, the host can observe desired and commanded values but cannot prove the mechanism reached them.
 
-6. **Observability changes the speed of robotics work.** A shared command-state view and live calibration interface make it possible to inspect perception/control behavior before blaming mechanics or electronics.
+6. **Mechanical constraints belong in software—and should also exist in firmware.** A numerically valid 0°–180° command may be mechanically unsafe. The host applies calibrated bounds, but embedded bounds remain necessary defense in depth.
 
-7. **A visualization is not feedback.** Broadcasting the intended servo state is valuable, but it cannot prove that the physical arm reached that state. Sensors are required to close that loop.
+7. **Physical AI requires fault tolerance.** NaNs, degenerate vectors, low-visibility points, dropped observations, and communication failure are expected system conditions rather than exceptional curiosities.
 
-8. **Real-time robotics is a systems problem.** Camera acquisition, inference, calibration, browser networking, serial transport, PWM, power integrity, and mechanism constraints all shape the final behavior.
+8. **Visualization increases observability.** A shared command-state view and live calibration interface expose internal state and help move diagnosis methodically from perception toward communication and mechanics.
+
+9. **Robotics is integration engineering.** Camera acquisition, inference, geometry, calibration, browser networking, serial transport, PWM, power integrity, actuation, and mechanism constraints all shape the observed behavior.
 
 ---
 
@@ -754,6 +952,20 @@ No benchmark results or quantitative performance claims are stored in the reposi
 | serial and watchdog behavior | inject malformed, stale, and out-of-range packets safely | embedded fault tolerance |
 
 A useful experimental record should include camera resolution and placement, compute hardware, package versions, servo models, supply voltage/current, mechanical load, calibration profile, processing rate, and repeated-trial distributions—not only averages.
+
+<details>
+<summary><strong>Proposed experiment protocols</strong></summary>
+
+1. **Static mapping accuracy:** hold a set of repeatable human configurations and compare the geometric measurement, expected calibrated target, and generated S1–S4 command.
+2. **Command stability:** hold the operator stationary and report per-joint mean, variance, range, and dropout count over a fixed interval.
+3. **Step response:** transition between two defined poses and measure command rise time and settling behavior under different smoothing parameters. Physical overshoot requires an external pose measurement or future joint sensor.
+4. **Landmark dropout:** temporarily occlude the right arm or hand and log point reuse, command hold duration, and the recovery transient.
+5. **Latency decomposition:** timestamp capture, inference completion, mapping, filtering, and serial write; add firmware receipt and observed motion onset when instrumentation is available.
+6. **Repeatability:** repeat the same gesture sequence across trials, users, camera distances, and lighting conditions, then compare command trajectories.
+
+Each protocol should declare sample count, initial state, calibration profile, camera geometry, compute platform, mechanism load, and failure criteria before data collection.
+
+</details>
 
 ---
 
